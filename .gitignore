@@ -16,3 +16,7 @@
 #!/.junie
 
 !/scripts
+
+# Release Please configuration and manifest
+!/release-please-config.json
+!/.release-please-manifest.json

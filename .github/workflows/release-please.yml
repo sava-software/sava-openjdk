@@ -1,12 +1,9 @@
 name: Release Please
 
 on:
-  workflow_run:
-    workflows: [ "Gradle Check" ]
+  push:
     branches:
       - main
-    types:
-      - completed
 
 concurrency:
   group: release-please-${{ github.ref }}

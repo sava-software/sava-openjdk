@@ -12,3 +12,11 @@ updates:
       - "docker"
     commit-message:
       prefix: "docker"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependencies"
+      - "ci"

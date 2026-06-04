@@ -74,8 +74,6 @@ jobs:
             echo "enabled=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      # QEMU + Buildx + GHCR login. The third-party action SHAs (setup-qemu,
-      # setup-buildx, login-action) are pinned once in sava-build and reused here.
       - name: Docker setup (GHCR)
         uses: sava-software/sava-build/.github/actions/docker-setup@main
         with:
@@ -91,10 +89,6 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # metadata-action + build-push-action, also pinned once in sava-build.
-      # All JDK build args are defined explicitly here so each matrix entry
-      # builds a specific GA or EA release. The image tag combines the JDK
-      # version with the OS / OS version (e.g. 26.0.1-debian-trixie).
       - name: Build and push (${{ matrix.release_type }} ${{ matrix.jdk_tag }} ${{ matrix.os_tag }})
         uses: sava-software/sava-build/.github/actions/docker-build-image@main
         with:

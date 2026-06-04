@@ -1,0 +1,35 @@
+name: Sync Docker Hub description
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - README.md
+      - .github/workflows/dockerhub-description.yml
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: vars.DOCKERHUB_USERNAME != ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Resolve Docker Hub image name
+        id: dockerhub
+        run: |
+          image="${{ vars.DOCKERHUB_IMAGE }}"
+          if [ -z "${image}" ]; then
+            image="${{ vars.DOCKERHUB_USERNAME }}/sava-openjdk"
+          fi
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+
+      - name: Sync Docker Hub repository overview
+        uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ steps.dockerhub.outputs.image }}
+          readme-filepath: ./README.md
+          short-description: "OpenJDK images for building Gradle projects and running jlink"

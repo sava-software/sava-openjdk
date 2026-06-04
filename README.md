@@ -1,6 +1,6 @@
 # sava-openjdk
 
-A small, reusable set of **OpenJDK base images** whose purpose is to provide a
+A small, reusable set of **OpenJDK images** whose purpose is to provide a
 JDK that works for **building Gradle projects** and **running `jlink`** to
 produce custom runtime images. The image installs a verified OpenJDK build
 under `/opt/java` and exposes it via `JAVA_HOME` / `PATH`, so downstream images

@@ -1,0 +1,117 @@
+name: Publish OpenJDK base image
+
+on:
+  push:
+    tags:
+      - '[0-9]*.[0-9]*.[0-9]*'
+
+env:
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # GA (General Availability) builds.
+          - target: debian
+            release_type: ga
+            java_version: "26.0.1"
+            java_build: "8"
+            java_version_hash: "458fda22e4c54d5ba572ab8d2b22eb83"
+            jdk_sha256_x64: "2f2802d57b5fc414f1ddf6648ba12cc9a6454cf67b32ac95407c018f2e6ab0b0"
+            jdk_sha256_aarch64: "12a3649b2f4a0c9f6491d220bdd04b4fff07cae502b435aaff46eac0e36f4df1"
+            jdk_tag: "26.0.1"
+            os_tag: "debian-trixie"
+          - target: alpine
+            release_type: ga
+            java_version: "26.0.1"
+            java_build: "8"
+            java_version_hash: "458fda22e4c54d5ba572ab8d2b22eb83"
+            jdk_sha256_x64: "2f2802d57b5fc414f1ddf6648ba12cc9a6454cf67b32ac95407c018f2e6ab0b0"
+            jdk_sha256_aarch64: "12a3649b2f4a0c9f6491d220bdd04b4fff07cae502b435aaff46eac0e36f4df1"
+            jdk_tag: "26.0.1"
+            os_tag: "alpine-3.23"
+          # EA (Early Access) builds. 27 build 24 is the latest EA.
+          - target: debian
+            release_type: ea
+            java_version: "27"
+            java_build: "24"
+            java_version_hash: ""
+            jdk_sha256_x64: "eb8d0fac160a096fc406b794465b245a8b40cb1b04bbb4c5824393cde263a8b5"
+            jdk_sha256_aarch64: "832ef5a271052b9065f2b5b7a63ecdbbd0363edd74228736bab7227b45b21a66"
+            jdk_tag: "27-ea24"
+            os_tag: "debian-trixie"
+          - target: alpine
+            release_type: ea
+            java_version: "27"
+            java_build: "24"
+            java_version_hash: ""
+            jdk_sha256_x64: "eb8d0fac160a096fc406b794465b245a8b40cb1b04bbb4c5824393cde263a8b5"
+            jdk_sha256_aarch64: "832ef5a271052b9065f2b5b7a63ecdbbd0363edd74228736bab7227b45b21a66"
+            jdk_tag: "27-ea24"
+            os_tag: "alpine-3.23"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Resolve Docker Hub image name
+        id: dockerhub
+        run: |
+          if [ -n "${{ vars.DOCKERHUB_USERNAME }}" ]; then
+            image="${{ vars.DOCKERHUB_IMAGE }}"
+            if [ -z "${image}" ]; then
+              image="${{ vars.DOCKERHUB_USERNAME }}/sava-openjdk"
+            fi
+            echo "image=${image}" >> "${GITHUB_OUTPUT}"
+            echo "enabled=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "enabled=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      # QEMU + Buildx + GHCR login. The third-party action SHAs (setup-qemu,
+      # setup-buildx, login-action) are pinned once in sava-build and reused here.
+      - name: Docker setup (GHCR)
+        uses: sava-software/sava-build/.github/actions/docker-setup@main
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: steps.dockerhub.outputs.enabled == 'true'
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # metadata-action + build-push-action, also pinned once in sava-build.
+      # All JDK build args are defined explicitly here so each matrix entry
+      # builds a specific GA or EA release. The image tag combines the JDK
+      # version with the OS / OS version (e.g. 26.0.1-debian-trixie).
+      - name: Build and push (${{ matrix.release_type }} ${{ matrix.jdk_tag }} ${{ matrix.os_tag }})
+        uses: sava-software/sava-build/.github/actions/docker-build-image@main
+        with:
+          image: |
+            ${{ env.GHCR_IMAGE }}
+            ${{ steps.dockerhub.outputs.enabled == 'true' && steps.dockerhub.outputs.image || '' }}
+          dockerfile: ./Dockerfile
+          target: ${{ matrix.target }}
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            JAVA_RELEASE_TYPE=${{ matrix.release_type }}
+            JAVA_VERSION=${{ matrix.java_version }}
+            JAVA_BUILD=${{ matrix.java_build }}
+            JAVA_VERSION_HASH=${{ matrix.java_version_hash }}
+            JDK_SHA256_X64=${{ matrix.jdk_sha256_x64 }}
+            JDK_SHA256_AARCH64=${{ matrix.jdk_sha256_aarch64 }}
+          tags: |
+            type=raw,value=${{ matrix.jdk_tag }}-${{ matrix.os_tag }}
+          cache-from: type=gha,scope=${{ matrix.release_type }}-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.release_type }}-${{ matrix.target }}

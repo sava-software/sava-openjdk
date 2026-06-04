@@ -1,0 +1,18 @@
+# Ignore everything by default; only explicitly track what is needed.
+/*
+
+# Build instructions
+!/Dockerfile
+
+# Ignore/exclude rules themselves
+!/.dockerignore
+!/.gitignore
+
+# Project metadata
+!/README.md
+
+# Tracked configuration directories
+!/.github
+#!/.junie
+
+!/scripts

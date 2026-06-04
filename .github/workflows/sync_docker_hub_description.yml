@@ -6,7 +6,10 @@ on:
       - main
     paths:
       - README.md
-      - .github/workflows/dockerhub-description.yml
+      - .github/workflows/sync_docker_hub_description.yml
+
+permissions:
+  contents: read
 
 jobs:
   sync:
@@ -26,10 +29,47 @@ jobs:
           echo "image=${image}" >> "${GITHUB_OUTPUT}"
 
       - name: Sync Docker Hub repository overview
-        uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77
-        with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ steps.dockerhub.outputs.image }}
-          readme-filepath: ./README.md
-          short-description: "OpenJDK images for building Gradle projects and running jlink"
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          REPOSITORY: ${{ steps.dockerhub.outputs.image }}
+          SHORT_DESCRIPTION: "OpenJDK images for building Gradle projects and running jlink"
+        run: |
+          set -euo pipefail
+
+          # 1. Obtain a short-lived JWT. --data-urlencode avoids issues with
+          #    special characters and keeps the token off the process arg list.
+          token="$(curl --fail --silent --show-error \
+            --data-urlencode "username=${DOCKERHUB_USERNAME}" \
+            --data-urlencode "password=${DOCKERHUB_TOKEN}" \
+            "https://hub.docker.com/v2/users/login/" \
+            | jq -r '.token')"
+
+          if [ -z "${token}" ] || [ "${token}" = "null" ]; then
+            echo "::error::Failed to obtain Docker Hub JWT" >&2
+            exit 1
+          fi
+
+          # 2. Build the JSON payload from the README via jq so the markdown is
+          #    safely escaped (newlines, quotes, backticks, etc.).
+          payload="$(jq -n \
+            --rawfile full README.md \
+            --arg short "${SHORT_DESCRIPTION}" \
+            '{full_description: $full, description: $short}')"
+
+          # 3. PATCH the repository overview.
+          http_code="$(curl --silent --show-error --output /tmp/resp.json \
+            --write-out '%{http_code}' \
+            --request PATCH \
+            --header "Authorization: JWT ${token}" \
+            --header "Content-Type: application/json" \
+            --data "${payload}" \
+            "https://hub.docker.com/v2/repositories/${REPOSITORY}/")"
+
+          if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ]; then
+            echo "::error::Docker Hub returned HTTP ${http_code}" >&2
+            cat /tmp/resp.json >&2
+            exit 1
+          fi
+
+          echo "Updated overview for ${REPOSITORY}"

@@ -18,29 +18,42 @@ intended workloads — building Gradle projects and running `jlink`:
 
 Select a variant with `docker build --target <name>`.
 
+The images are published to both registries (identical tag sets):
+
 - **GitHub Container Registry:** `ghcr.io/sava-software/sava-openjdk`
 - **Docker Hub:** `jpe7s/sava-openjdk`
 
 ## Contents
 
-| Property        | Value                              |
-|-----------------|------------------------------------|
-| Base            | `debian:trixie` (pinned by digest) |
-| OpenJDK version | `26.0.1` (GA, from jdk.java.net)   |
-| `JAVA_HOME`     | `/opt/java`                        |
-| Architectures   | `linux/amd64`, `linux/arm64`       |
+Each published tag combines the OpenJDK version with the OS / OS version. The
+currently published tags are:
+
+| Release | Variant  | Tag                     |
+|---------|----------|-------------------------|
+| GA      | `debian` | `26.0.1-debian-trixie`  |
+| GA      | `alpine` | `26.0.1-alpine-3.23`    |
+| EA      | `debian` | `27-ea24-debian-trixie` |
+| EA      | `alpine` | `27-ea24-alpine-3.23`   |
+
+Common properties across all tags:
+
+| Property        | Value                                            |
+|-----------------|--------------------------------------------------|
+| Base            | `debian:trixie` / `alpine:3.23` (pinned by digest) |
+| OpenJDK source  | jdk.java.net (GA `26.0.1`, EA `27-ea+24`)        |
+| `JAVA_HOME`     | `/opt/java`                                      |
+| Architectures   | `linux/amd64`, `linux/arm64`                     |
 
 ## Usage
 
+Pull from either registry — the tag sets are identical:
+
 ```dockerfile
+# GitHub Container Registry
 FROM ghcr.io/sava-software/sava-openjdk:26.0.1-debian-trixie
+# ...or Docker Hub
+# FROM jpe7s/sava-openjdk:26.0.1-debian-trixie
 # java, javac, jlink, ... are already on PATH and JAVA_HOME is set
-```
-
-Quick sanity check:
-
-```bash
-docker run --rm ghcr.io/sava-software/sava-openjdk:26.0.1-debian-trixie java --version
 ```
 
 ## Building locally
@@ -94,7 +107,7 @@ docker build \
 This corresponds to download URLs such as
 `https://download.java.net/java/early_access/jdk27/24/GPL/openjdk-27-ea+24_linux-aarch64_bin.tar.gz`.
 
-### Reusable install script
+### Reusable installation script
 
 The download/verify/extract logic lives in
 [`scripts/install-jdk.sh`](./scripts/install-jdk.sh) so it can be reused by
@@ -159,15 +172,10 @@ GHCR and Docker Hub on version tag pushes (`X.Y.Z`). All JDK build args
 per-architecture `JDK_SHA256_X64` / `JDK_SHA256_AARCH64` checksums) are defined
 explicitly per matrix entry.
 
-Each image tag combines the JDK version with the OS / OS version, so the four
-published tags are:
-
-| Release | Target   | Tag                  |
-|---------|----------|----------------------|
-| GA      | `debian` | `26.0.1-debian-trixie` |
-| GA      | `alpine` | `26.0.1-alpine-3.23`   |
-| EA      | `debian` | `27-ea24-debian-trixie` |
-| EA      | `alpine` | `27-ea24-alpine-3.23`   |
+Each image tag combines the JDK version with the OS / OS version, producing the
+four published tags listed in the [Contents](#contents) table. The same tag set
+is pushed to both GHCR (`ghcr.io/sava-software/sava-openjdk`) and Docker Hub
+(`jpe7s/sava-openjdk`).
 
 Update the `java_version`/`java_build`/`jdk_tag` and the
 `jdk_sha256_x64`/`jdk_sha256_aarch64` values in the workflow matrix when bumping

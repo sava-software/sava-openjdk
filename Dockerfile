@@ -55,6 +55,8 @@ COPY --from=jdk /opt/java /opt/java
 # and libraries land at their absolute paths (e.g. /lib64/ld-linux-x86-64.so.2).
 COPY --from=jdk /rootfs-libs/ /rootfs-libs/
 
+RUN mkdir -p /rootfs/tmp && chmod 1777 /rootfs/tmp
+
 CMD [ "java", "--version" ]
 
 # --- final: alpine runtime ---
@@ -80,6 +82,8 @@ RUN set -eux; \
       mkdir -p "/$(dirname "${rel}")"; \
       ln -sf "/rootfs-libs/${rel}" "/${rel}"; \
     done
+
+RUN mkdir -p /rootfs/tmp && chmod 1777 /rootfs/tmp
 
 # Gradle detects the Alpine OS as musl and loads its musl native file-events
 # library (.../<arch>-linux-musl/libgradle-fileevents.so), which links the

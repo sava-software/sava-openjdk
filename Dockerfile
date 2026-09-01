@@ -60,7 +60,7 @@ RUN mkdir -p /rootfs/tmp && chmod 1777 /rootfs/tmp
 CMD [ "java", "--version" ]
 
 # --- final: alpine runtime ---
-FROM alpine:3.24@sha256:8ddefa941e689fc29abcdeb8dae3b3c6d139cc08ce9a52633931160701770685 AS alpine
+FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS alpine
 
 ENV JAVA_HOME=/opt/java
 ENV PATH="${JAVA_HOME}/bin:${PATH}"

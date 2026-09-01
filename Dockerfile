@@ -12,7 +12,7 @@
 # published images carry no build tooling.
 
 # https://www.debian.org/releases/
-FROM debian:trixie@sha256:fac46bff2e02f51425b6e33b0e1169f55dfb053d83511ca28aa50c09fd5ed7a4 AS jdk
+FROM debian:trixie@sha256:f324c7ff54321e8d9c588493a20244965938ce0aa50bbd1022d38010e9ffc4b1 AS jdk
 
 # Build args are intentionally declared without defaults; the default values
 # (the currently published GA build) live in scripts/install-jdk.sh so they can
@@ -44,7 +44,7 @@ COPY scripts/stage-rootfs-libs.sh /usr/local/bin/stage-rootfs-libs.sh
 RUN /usr/local/bin/stage-rootfs-libs.sh
 
 # --- final: debian runtime ---
-FROM debian:trixie@sha256:fac46bff2e02f51425b6e33b0e1169f55dfb053d83511ca28aa50c09fd5ed7a4 AS debian
+FROM debian:trixie@sha256:f324c7ff54321e8d9c588493a20244965938ce0aa50bbd1022d38010e9ffc4b1 AS debian
 
 ENV JAVA_HOME=/opt/java
 ENV PATH="${JAVA_HOME}/bin:${PATH}"

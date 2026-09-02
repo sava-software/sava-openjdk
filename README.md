@@ -28,21 +28,21 @@ The images are published to both registries (identical tag sets):
 Each published tag combines the OpenJDK version with the OS / OS version. The
 currently published tags are:
 
-| Release | Variant  | Tag                     |
-|---------|----------|-------------------------|
-| GA      | `debian` | `26.0.1-debian-trixie`  |
-| GA      | `alpine` | `26.0.1-alpine-3.23`    |
-| EA      | `debian` | `27-ea24-debian-trixie` |
-| EA      | `alpine` | `27-ea24-alpine-3.23`   |
+| Release | Variant  | Tag                       |
+|---------|----------|---------------------------|
+| GA      | `debian` | `26.0.2.1-debian-trixie`  |
+| GA      | `alpine` | `26.0.2.1-alpine-3.24`    |
+| EA      | `debian` | `27-ea34-debian-trixie`   |
+| EA      | `alpine` | `27-ea34-alpine-3.24`     |
 
 Common properties across all tags:
 
-| Property        | Value                                            |
-|-----------------|--------------------------------------------------|
-| Base            | `debian:trixie` / `alpine:3.23` (pinned by digest) |
-| OpenJDK source  | jdk.java.net (GA `26.0.1`, EA `27-ea+24`)        |
-| `JAVA_HOME`     | `/opt/java`                                      |
-| Architectures   | `linux/amd64`, `linux/arm64`                     |
+| Property        | Value                                              |
+|-----------------|----------------------------------------------------|
+| Base            | `debian:trixie` / `alpine:3.24` (pinned by digest) |
+| OpenJDK source  | jdk.java.net (GA `26.0.2.1`, EA `27-ea+34`)        |
+| `JAVA_HOME`     | `/opt/java`                                        |
+| Architectures   | `linux/amd64`, `linux/arm64`                       |
 
 ## Usage
 
@@ -50,62 +50,62 @@ Pull from either registry — the tag sets are identical:
 
 ```dockerfile
 # GitHub Container Registry
-FROM ghcr.io/sava-software/sava-openjdk:26.0.1-debian-trixie
+FROM ghcr.io/sava-software/sava-openjdk:26.0.2.1-debian-trixie
 # ...or Docker Hub
-# FROM jpe7s/sava-openjdk:26.0.1-debian-trixie
+# FROM jpe7s/sava-openjdk:26.0.2.1-debian-trixie
 # java, javac, jlink, ... are already on PATH and JAVA_HOME is set
 ```
 
 ## Building locally
 
+Every JDK build arg is required (the `Dockerfile` declares them without
+defaults); the values below are the GA entry of the CI publish matrix. The
+sha256 checksum is supplied per architecture so the download is verified:
+`install-jdk.sh` selects the one matching the build's `TARGETARCH`, and you may
+pass a single `JDK_SHA256` to override both.
+
 ```bash
+JDK_ARGS=(
+  --build-arg JAVA_RELEASE_TYPE=ga
+  --build-arg JAVA_VERSION=26.0.2.1
+  --build-arg JAVA_BUILD=1
+  --build-arg JAVA_VERSION_HASH=3b8e6c7ec6274148a7aa15e7e7dfb53c
+  --build-arg JDK_SHA256_X64=a1489256029b389ce6ee52da0de1d01496c5df1776d6870241fe4823b998ea61
+  --build-arg JDK_SHA256_AARCH64=b96b265a4a1a36c02454148891aa58ca63303cbc2d1b7979c33b4fe99e09117b
+)
+
 # debian runtime, single architecture (host)
-docker build --target debian -t sava-openjdk:local .
+docker build --target debian "${JDK_ARGS[@]}" -t sava-openjdk:local .
 
 # alpine/jlink runtime
-docker build --target alpine -t sava-openjdk:local-alpine .
+docker build --target alpine "${JDK_ARGS[@]}" -t sava-openjdk:local-alpine .
 
 # multi-architecture
-docker buildx build --target debian --platform linux/amd64,linux/arm64 -t sava-openjdk:local .
+docker buildx build --target debian --platform linux/amd64,linux/arm64 "${JDK_ARGS[@]}" -t sava-openjdk:local .
 ```
 
 If `--target` is omitted, the last stage in the `Dockerfile` (`alpine`) is built.
 
-The expected sha256 checksum of the download is **not** baked into the build
-any more; supply it per architecture so the download is verified (the CI publish
-matrix passes these). Override the JDK version and pass the checksums at build
-time:
-
-```bash
-docker build --target debian \
-  --build-arg JAVA_VERSION=26.0.1 \
-  --build-arg JDK_SHA256_X64=2f2802d57b5fc414f1ddf6648ba12cc9a6454cf67b32ac95407c018f2e6ab0b0 \
-  --build-arg JDK_SHA256_AARCH64=12a3649b2f4a0c9f6491d220bdd04b4fff07cae502b435aaff46eac0e36f4df1 \
-  -t sava-openjdk:local .
-```
-
-`install-jdk.sh` selects the checksum matching the build's `TARGETARCH`; you may
-also pass a single `JDK_SHA256` to override both.
-
 ### Early Access (EA) builds
 
-By default the image downloads a **GA** release. To build against an **Early
+The examples above build a **GA** release. To build against an **Early
 Access** release instead, set `JAVA_RELEASE_TYPE=ea` and supply the matching
-`JAVA_VERSION` (major), `JAVA_BUILD` and the per-architecture sha256 checksums:
+`JAVA_VERSION` (major), `JAVA_BUILD` and the per-architecture sha256 checksums
+(`JAVA_VERSION_HASH` is only used for GA downloads):
 
 ```bash
 docker build \
   --build-arg JAVA_RELEASE_TYPE=ea \
   --build-arg JAVA_VERSION=27 \
-  --build-arg JAVA_BUILD=24 \
-  --build-arg JDK_SHA256_X64=eb8d0fac160a096fc406b794465b245a8b40cb1b04bbb4c5824393cde263a8b5 \
-  --build-arg JDK_SHA256_AARCH64=832ef5a271052b9065f2b5b7a63ecdbbd0363edd74228736bab7227b45b21a66 \
+  --build-arg JAVA_BUILD=34 \
+  --build-arg JDK_SHA256_X64=e82f0b585355fa9b8aa309711cb67afa0d87a6c4ddc5d583951a412e46512f08 \
+  --build-arg JDK_SHA256_AARCH64=fd51c0306ecd1d15e2e9f9bf91c7b339c7194517de3d9a46eb9007a340cf046e \
   --target debian \
   -t sava-openjdk:local .
 ```
 
 This corresponds to download URLs such as
-`https://download.java.net/java/early_access/jdk27/24/GPL/openjdk-27-ea+24_linux-aarch64_bin.tar.gz`.
+`https://download.java.net/java/early_access/jdk27/34/GPL/openjdk-27-ea+34_linux-aarch64_bin.tar.gz`.
 
 ### Reusable installation script
 
@@ -117,25 +117,30 @@ provided via environment variables:
 
 | Variable            | Purpose                                                                             |
 |---------------------|-------------------------------------------------------------------------------------|
-| `JAVA_VERSION`      | JDK version. GA: full (e.g. `26.0.1`). EA: major (e.g. `27`). Defaults to `26.0.1`. |
-| `JAVA_BUILD`        | Build number (e.g. `8` for GA, `24` for EA). Defaults to `8`.                       |
-| `JAVA_RELEASE_TYPE` | `ga` (default) or `ea`.                                                             |
-| `JAVA_VERSION_HASH` | GA only: the version hash in the download URL. Defaults to the GA build.            |
-| `TARGETARCH`         | `amd64`/`arm64` or `x86_64`/`aarch64`. Defaults to `uname -m`.                      |
+| `JAVA_VERSION`      | JDK version. GA: full (e.g. `26.0.2.1`). EA: major (e.g. `27`). Required.          |
+| `JAVA_BUILD`        | Build number (e.g. `1` for GA, `34` for EA). Required.                              |
+| `JAVA_RELEASE_TYPE` | `ga` or `ea`. Required.                                                             |
+| `JAVA_VERSION_HASH` | GA only: the version hash in the download URL. Required for `ga`.                   |
+| `TARGETARCH`         | `amd64`/`arm64` or `x86_64`/`aarch64`. Required.                                    |
 | `JDK_SHA256_X64`     | Expected sha256 of the x64 download. Required (unless `JDK_SHA256` is set).         |
 | `JDK_SHA256_AARCH64` | Expected sha256 of the aarch64 download. Required (unless `JDK_SHA256` is set).     |
 | `JDK_SHA256`         | Optional checksum override taking precedence over the per-arch values.             |
-| `JAVA_HOME`          | Install directory. Defaults to `/opt/java`.                                         |
+| `JAVA_HOME`          | Install directory. Required.                                                        |
 
 To reuse it in another Dockerfile:
 
 ```dockerfile
+# BuildKit populates TARGETARCH once it is declared; the script reads JAVA_HOME
+# as the install directory.
+ARG TARGETARCH
+ENV JAVA_HOME=/opt/java
 COPY scripts/install-jdk.sh /usr/local/bin/install-jdk.sh
 RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates && \
     rm -rf /var/lib/apt/lists/* && \
-    JAVA_VERSION=26.0.1 JAVA_BUILD=8 \
-    JDK_SHA256_X64=2f2802d57b5fc414f1ddf6648ba12cc9a6454cf67b32ac95407c018f2e6ab0b0 \
-    JDK_SHA256_AARCH64=12a3649b2f4a0c9f6491d220bdd04b4fff07cae502b435aaff46eac0e36f4df1 \
+    JAVA_RELEASE_TYPE=ga JAVA_VERSION=26.0.2.1 JAVA_BUILD=1 \
+    JAVA_VERSION_HASH=3b8e6c7ec6274148a7aa15e7e7dfb53c \
+    JDK_SHA256_X64=a1489256029b389ce6ee52da0de1d01496c5df1776d6870241fe4823b998ea61 \
+    JDK_SHA256_AARCH64=b96b265a4a1a36c02454148891aa58ca63303cbc2d1b7979c33b4fe99e09117b \
     /usr/local/bin/install-jdk.sh
 ```
 

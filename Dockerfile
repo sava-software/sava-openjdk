@@ -12,11 +12,11 @@
 # published images carry no build tooling.
 
 # https://www.debian.org/releases/
-FROM debian:trixie@sha256:fac46bff2e02f51425b6e33b0e1169f55dfb053d83511ca28aa50c09fd5ed7a4 AS jdk
+FROM debian:trixie@sha256:f324c7ff54321e8d9c588493a20244965938ce0aa50bbd1022d38010e9ffc4b1 AS jdk
 
-# Build args are intentionally declared without defaults; the default values
-# (the currently published GA build) live in scripts/install-jdk.sh so they can
-# be shared across stages. Override any of these with --build-arg.
+# Build args are intentionally declared without defaults; the values for the
+# currently published builds live in the CI publish matrix
+# (.github/workflows/publish.yml). Supply each of them with --build-arg.
 ARG JAVA_VERSION
 ARG JAVA_BUILD
 # Release channel: "ga" (General Availability) or "ea" (Early Access).
@@ -44,7 +44,7 @@ COPY scripts/stage-rootfs-libs.sh /usr/local/bin/stage-rootfs-libs.sh
 RUN /usr/local/bin/stage-rootfs-libs.sh
 
 # --- final: debian runtime ---
-FROM debian:trixie@sha256:fac46bff2e02f51425b6e33b0e1169f55dfb053d83511ca28aa50c09fd5ed7a4 AS debian
+FROM debian:trixie@sha256:f324c7ff54321e8d9c588493a20244965938ce0aa50bbd1022d38010e9ffc4b1 AS debian
 
 ENV JAVA_HOME=/opt/java
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
@@ -83,13 +83,13 @@ RUN set -eux; \
       ln -sf "/rootfs-libs/${rel}" "/${rel}"; \
     done
 
-RUN mkdir -p /rootfs/tmp && chmod 1777 /rootfs/tmp
-
 # Gradle detects the Alpine OS as musl and loads its musl native file-events
 # library (.../<arch>-linux-musl/libgradle-fileevents.so), which links the
 # unversioned "libc.so". Alpine only ships the SONAME (libc.musl-<arch>.so.1),
 # so provide a "libc.so" symlink to musl libc; without it Gradle fails to
 # initialise its native services under the (glibc) JDK.
 RUN set -eux; for musl in /lib/ld-musl-*.so.1; do ln -sf "${musl}" /lib/libc.so; done
+
+RUN mkdir -p /rootfs/tmp && chmod 1777 /rootfs/tmp
 
 CMD [ "java", "--version" ]

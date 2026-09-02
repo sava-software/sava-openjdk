@@ -7,9 +7,9 @@
 #
 # Inputs are provided via environment variables. All are required (no defaults
 # are baked in here); callers (Dockerfiles, CI) must supply them explicitly:
-#   JAVA_VERSION       JDK version. GA: full version (e.g. "26.0.1").
+#   JAVA_VERSION       JDK version. GA: full version (e.g. "26.0.2.1").
 #                      EA: major version (e.g. "27").
-#   JAVA_BUILD         Build number (e.g. "8" for GA, "24" for EA).
+#   JAVA_BUILD         Build number (e.g. "1" for GA, "34" for EA).
 #   JAVA_RELEASE_TYPE  "ga" or "ea".
 #   JAVA_VERSION_HASH  GA only: the version hash in the download URL.
 #   TARGETARCH         Docker target arch ("amd64"/"arm64") or "uname -m"
@@ -23,7 +23,7 @@
 #   JAVA_HOME          Install directory.
 #
 # Example EA download URL:
-#   https://download.java.net/java/early_access/jdk27/24/GPL/openjdk-27-ea+24_linux-aarch64_bin.tar.gz
+#   https://download.java.net/java/early_access/jdk27/34/GPL/openjdk-27-ea+34_linux-aarch64_bin.tar.gz
 
 set -eu
 

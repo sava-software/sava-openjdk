@@ -21,42 +21,41 @@ jobs:
           # GA (General Availability) builds.
           - target: debian
             release_type: ga
-            java_version: "26.0.2.1"
-            java_build: "1"
-            java_version_hash: "3b8e6c7ec6274148a7aa15e7e7dfb53c"
-            jdk_sha256_x64: "a1489256029b389ce6ee52da0de1d01496c5df1776d6870241fe4823b998ea61"
-            jdk_sha256_aarch64: "b96b265a4a1a36c02454148891aa58ca63303cbc2d1b7979c33b4fe99e09117b"
-            jdk_tag: "26.0.2.1"
+            java_version: "27"
+            java_build: "35"
+            java_version_hash: "55ce5470a6294008af0057ff4626d0e5"
+            jdk_sha256_x64: "95fc37eb3a18a27a26d5904c2d89d52bace8dafa9a078ca27f4747fbc4bf070b"
+            jdk_sha256_aarch64: "da4e9dde1fff90204739e969187bab4751bd59a2a1c479672e1a1810f7dd23ea"
+            jdk_tag: "27"
             os_tag: "debian-trixie"
           - target: alpine
             release_type: ga
-            java_version: "26.0.2.1"
-            java_build: "1"
-            java_version_hash: "3b8e6c7ec6274148a7aa15e7e7dfb53c"
-            jdk_sha256_x64: "a1489256029b389ce6ee52da0de1d01496c5df1776d6870241fe4823b998ea61"
-            jdk_sha256_aarch64: "b96b265a4a1a36c02454148891aa58ca63303cbc2d1b7979c33b4fe99e09117b"
-            jdk_tag: "26.0.2.1"
+            java_version: "27"
+            java_build: "35"
+            java_version_hash: "55ce5470a6294008af0057ff4626d0e5"
+            jdk_sha256_x64: "95fc37eb3a18a27a26d5904c2d89d52bace8dafa9a078ca27f4747fbc4bf070b"
+            jdk_sha256_aarch64: "da4e9dde1fff90204739e969187bab4751bd59a2a1c479672e1a1810f7dd23ea"
+            jdk_tag: "27"
             os_tag: "alpine-3.24"
-          # EA (Early Access) builds. 27 build 34 is the latest build published on the
-          # early-access download path; 27 builds 35+ are release candidates and are
-          # published under the GA path instead (JDK 27 GA is scheduled for 2026-09-15).
+          # EA (Early Access) builds. 28 build 15 is the latest build published on the
+          # early-access download path (https://jdk.java.net/28/).
           - target: debian
             release_type: ea
-            java_version: "27"
-            java_build: "34"
+            java_version: "28"
+            java_build: "15"
             java_version_hash: ""
-            jdk_sha256_x64: "e82f0b585355fa9b8aa309711cb67afa0d87a6c4ddc5d583951a412e46512f08"
-            jdk_sha256_aarch64: "fd51c0306ecd1d15e2e9f9bf91c7b339c7194517de3d9a46eb9007a340cf046e"
-            jdk_tag: "27-ea34"
+            jdk_sha256_x64: "621528ea2be9bcfc995c350d7db6dc6270a212de980dc31e5c1626612bad469d"
+            jdk_sha256_aarch64: "09d100ebcc0a205f809834f79b0bdf5637cc52d2c5ec3ab30a88edba093b2b5f"
+            jdk_tag: "28-ea15"
             os_tag: "debian-trixie"
           - target: alpine
             release_type: ea
-            java_version: "27"
-            java_build: "34"
+            java_version: "28"
+            java_build: "15"
             java_version_hash: ""
-            jdk_sha256_x64: "e82f0b585355fa9b8aa309711cb67afa0d87a6c4ddc5d583951a412e46512f08"
-            jdk_sha256_aarch64: "fd51c0306ecd1d15e2e9f9bf91c7b339c7194517de3d9a46eb9007a340cf046e"
-            jdk_tag: "27-ea34"
+            jdk_sha256_x64: "621528ea2be9bcfc995c350d7db6dc6270a212de980dc31e5c1626612bad469d"
+            jdk_sha256_aarch64: "09d100ebcc0a205f809834f79b0bdf5637cc52d2c5ec3ab30a88edba093b2b5f"
+            jdk_tag: "28-ea15"
             os_tag: "alpine-3.24"
     steps:
       - name: Checkout

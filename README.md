@@ -8,10 +8,11 @@ can simply `FROM` it instead of re-downloading and checksum-verifying the JDK on
 every build.
 
 The single [`Dockerfile`](./Dockerfile) defines one shared `jdk` build stage
-(downloads, verifies and extracts the JDK and stages the minimal glibc runtime
-into `/rootfs-libs`) followed by two interchangeable final runtime targets that
-each copy only `/opt/java` and `/rootfs-libs` from it. Both target the two
-intended workloads — building Gradle projects and running `jlink`:
+(downloads, verifies and extracts the JDK, stages the minimal glibc runtime
+into `/rootfs-libs` and the C++ runtime into `/rootfs-cxx-libs`) followed by two
+interchangeable final runtime targets that each copy only `/opt/java` and
+`/rootfs-libs` from it (`alpine` also copies `/rootfs-cxx-libs`). Both target
+the two intended workloads — building Gradle projects and running `jlink`:
 
 - **`debian`**
 - **`alpine`**
@@ -55,6 +56,50 @@ FROM ghcr.io/sava-software/sava-openjdk:27-debian-trixie
 # FROM jpe7s/sava-openjdk:27-debian-trixie
 # java, javac, jlink, ... are already on PATH and JAVA_HOME is set
 ```
+
+## Gradle compatibility
+
+Gradle runs its build daemon on a JVM, and each Gradle release only supports
+running on JDKs up to a certain version (see Gradle's
+[compatibility matrix](https://docs.gradle.org/current/userguide/compatibility.html)).
+On a newer JDK, Groovy DSL build scripts and build logic compiled for that JDK
+(such as Java `buildSrc` classes) fail with
+`Unsupported class file major version`, so use a Gradle release that supports
+running on the image's JDK:
+
+| Image tags                      | JDK        | Gradle supported to run on it                        |
+|---------------------------------|------------|------------------------------------------------------|
+| `26.0.2.1-*` (previous release) | `26.0.2.1` | 9.4.0 and later                                      |
+| `27-*`                          | `27`       | 9.8.0 and later (release candidate as of 2026-09-15) |
+| `28-ea15-*`                     | `28-ea+15` | none yet (Gradle 9.9.0-milestone-1 stops at 27)      |
+
+With an older Gradle release, keep the daemon on a JDK it supports using
+[daemon JVM criteria](https://docs.gradle.org/current/userguide/gradle_daemon.html#sec:daemon_jvm_criteria),
+which Gradle 8.13 and later can download automatically:
+
+1. On a JDK your Gradle release supports, with a toolchain resolver such as
+   `org.gradle.toolchains.foojay-resolver-convention` (1.0.0 or later on
+   Gradle 9) applied in the settings script, run
+   `./gradlew updateDaemonJvm --jvm-version=<N>` for a Java version your Gradle
+   release can run on (for example `25` on Gradle 9.1 and later), and commit the
+   generated `gradle/gradle-daemon-jvm.properties`.
+2. Builds in the image then download that JDK into `$GRADLE_USER_HOME/jdks` and
+   start the daemon on it. For Temurin 25 that is a ~140 MB download taking
+   ~440 MB on disk (Gradle keeps the archive next to the extracted JDK), so
+   cache the directory in CI.
+3. Compilation also uses the daemon JDK unless you configure a
+   [Java toolchain](https://docs.gradle.org/current/userguide/toolchains.html).
+   Gradle 9.0 and later auto-detect the image's JDK from `JAVA_HOME`; on Gradle
+   8.13 and 8.14 add `org.gradle.java.installations.fromEnv=JAVA_HOME` to
+   `gradle.properties`.
+
+The `alpine` images also ship the C++ runtime (`libstdc++.so.6`,
+`libgcc_s.so.1`, see `ROOTFS_CXX_LIBS` below) because Gradle's native
+integration needs it on arm64. Without it Gradle warns "There is no native
+integration with this operating environment", disables file system watching and
+cannot download a daemon JDK ("Service 'SystemInfo' is not available"). Alpine
+images published before this was added, such as `26.0.2.1-alpine-3.24` and
+`27-ea34-alpine-3.24`, do not include it.
 
 ## Building locally
 
@@ -154,10 +199,16 @@ minimal shared libraries and a `nsswitch.conf` into an output directory that a
 slim runtime stage can `COPY` wholesale. Inputs are provided via environment
 variables:
 
-| Variable      | Purpose                                                              |
-|---------------|----------------------------------------------------------------------|
-| `JAVA_HOME`   | JDK install directory. Defaults to `/opt/java`.                      |
-| `ROOTFS_LIBS` | Output directory for the staged runtime. Defaults to `/rootfs-libs`. |
+| Variable          | Purpose                                                                                              |
+|-------------------|------------------------------------------------------------------------------------------------------|
+| `JAVA_HOME`       | JDK install directory. Defaults to `/opt/java`.                                                      |
+| `ROOTFS_LIBS`     | Output directory for the staged runtime. Defaults to `/rootfs-libs`.                                 |
+| `ROOTFS_CXX_LIBS` | Optional output directory for the C++ runtime (`libstdc++.so.6`, `libgcc_s.so.1`). Skipped if unset. |
+
+The C++ runtime is kept out of `ROOTFS_LIBS` because the JDK does not need it.
+The `jdk` stage writes it to `/rootfs-cxx-libs` and only the `alpine` target
+copies it, for Gradle's native integration on arm64 (see
+[Gradle compatibility](#gradle-compatibility)).
 
 To reuse it in another Dockerfile:
 

@@ -10,7 +10,8 @@
 #
 # Without `--target`, the last stage (alpine) is built. The shared `jdk` stage
 # (below) downloads, verifies and extracts the JDK and stages the minimal glibc
-# runtime into /rootfs-libs; both final stages copy only those artifacts so the
+# runtime into /rootfs-libs (plus the C++ runtime into /rootfs-cxx-libs, which
+# only alpine copies); the final stages copy only those artifacts so the
 # published images carry no build tooling.
 
 # https://www.debian.org/releases/
@@ -43,7 +44,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certifi
 
 COPY scripts/stage-rootfs-libs.sh /usr/local/bin/stage-rootfs-libs.sh
 
-RUN /usr/local/bin/stage-rootfs-libs.sh
+# /rootfs-cxx-libs is only copied into the alpine runtime (see below).
+RUN ROOTFS_CXX_LIBS=/rootfs-cxx-libs /usr/local/bin/stage-rootfs-libs.sh
 
 # --- final: debian runtime ---
 FROM debian:trixie@sha256:f324c7ff54321e8d9c588493a20244965938ce0aa50bbd1022d38010e9ffc4b1 AS debian
@@ -78,13 +80,23 @@ COPY --from=jdk /opt/java /opt/java
 # symlink every staged file to its corresponding absolute path under / so the
 # ELF interpreter and libraries are reachable (e.g. /lib64/ld-linux-x86-64.so.2)
 # while the originals remain isolated in /rootfs-libs.
+#
+# /rootfs-cxx-libs adds the C++ runtime (libstdc++.so.6, libgcc_s.so.1)
+# the same way. The JDK does not need it, but Gradle's native integration does:
+# its linux-aarch64 libnative-platform.so links both, and without them Gradle
+# runs with native services disabled ("There is no native integration with this
+# operating environment") and cannot auto-provision a daemon JVM ("Service
+# 'SystemInfo' is not available").
 COPY --from=jdk /rootfs-libs/ /rootfs-libs/
+COPY --from=jdk /rootfs-cxx-libs/ /rootfs-cxx-libs/
 RUN set -eux; \
-    cd /rootfs-libs; \
-    find . \( -type f -o -type l \) | while IFS= read -r f; do \
-      rel="${f#./}"; \
-      mkdir -p "/$(dirname "${rel}")"; \
-      ln -sf "/rootfs-libs/${rel}" "/${rel}"; \
+    for root in /rootfs-libs /rootfs-cxx-libs; do \
+      cd "${root}"; \
+      find . \( -type f -o -type l \) | while IFS= read -r f; do \
+        rel="${f#./}"; \
+        mkdir -p "/$(dirname "${rel}")"; \
+        ln -sf "${root}/${rel}" "/${rel}"; \
+      done; \
     done
 
 # Gradle detects the Alpine OS as musl and loads its musl native file-events

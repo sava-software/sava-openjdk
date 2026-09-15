@@ -10,14 +10,21 @@
 # amd64 and arm64.
 #
 # Inputs are provided via environment variables:
-#   JAVA_HOME    JDK install directory. Defaults to "/opt/java".
-#   ROOTFS_LIBS  Output directory for the staged runtime. Defaults to
-#                "/rootfs-libs".
+#   JAVA_HOME        JDK install directory. Defaults to "/opt/java".
+#   ROOTFS_LIBS      Output directory for the staged runtime. Defaults to
+#                    "/rootfs-libs".
+#   ROOTFS_CXX_LIBS  Optional output directory for the C++ runtime
+#                    (libstdc++.so.6, libgcc_s.so.1), staged with the same
+#                    layout. The JDK does not need it, so it is kept out of
+#                    ROOTFS_LIBS; Gradle's native integration does (its
+#                    linux-aarch64 libnative-platform.so links both) on a
+#                    base without glibc such as Alpine. Skipped when unset.
 
 set -eu
 
 JAVA_HOME="${JAVA_HOME:-/opt/java}"
 ROOTFS_LIBS="${ROOTFS_LIBS:-/rootfs-libs}"
+ROOTFS_CXX_LIBS="${ROOTFS_CXX_LIBS:-}"
 
 JAVA_BIN="${JAVA_HOME}/bin/java"
 
@@ -33,3 +40,10 @@ done
 cp -aL "${interp}" "${ROOTFS_LIBS}${interp}"
 
 printf 'passwd: files\ngroup: files\nhosts: files dns\n' > "${ROOTFS_LIBS}/etc/nsswitch.conf"
+
+if [ -n "${ROOTFS_CXX_LIBS}" ]; then
+  mkdir -p "${ROOTFS_CXX_LIBS}${triplet}"
+  for lib in libstdc++.so.6 libgcc_s.so.1; do
+    cp -aL "${triplet}/${lib}" "${ROOTFS_CXX_LIBS}${triplet}/${lib}"
+  done
+fi

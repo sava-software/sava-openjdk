@@ -1,10 +1,12 @@
 # syntax=docker/dockerfile:1
 
 # Single Dockerfile with a shared OpenJDK build stage and two interchangeable
-# final runtime targets. Select which one to build with `--target`:
+# final runtime targets. Select which one to build with `--target`, and supply
+# the required JDK build args (see "Building locally" in README.md for the
+# JDK_ARGS array):
 #
-#   docker build --target debian -t sava-openjdk:debian .   # debian:trixie runtime
-#   docker build --target alpine -t sava-openjdk:alpine .    # alpine + jlink runtime
+#   docker build --target debian "${JDK_ARGS[@]}" -t sava-openjdk:debian .   # debian:trixie runtime
+#   docker build --target alpine "${JDK_ARGS[@]}" -t sava-openjdk:alpine .   # alpine + jlink runtime
 #
 # Without `--target`, the last stage (alpine) is built. The shared `jdk` stage
 # (below) downloads, verifies and extracts the JDK and stages the minimal glibc
@@ -51,8 +53,10 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 COPY --from=jdk /opt/java /opt/java
 # glibc C runtime required by the (glibc) JDK launcher and libjvm, staged by the
-# jdk stage at architecture correct paths. Copy it to / so the ELF interpreter
-# and libraries land at their absolute paths (e.g. /lib64/ld-linux-x86-64.so.2).
+# jdk stage at architecture correct paths. The debian base already provides
+# glibc at its absolute paths, so the staged copy stays under /rootfs-libs for
+# downstream jlink runtime stages to copy wholesale
+# (e.g. `COPY --from=<this image> /rootfs-libs/ /`).
 COPY --from=jdk /rootfs-libs/ /rootfs-libs/
 
 RUN mkdir -p /rootfs/tmp && chmod 1777 /rootfs/tmp

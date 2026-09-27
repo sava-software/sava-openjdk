@@ -12,7 +12,8 @@
 # (below) downloads, verifies and extracts the JDK and stages the minimal glibc
 # runtime into /rootfs-libs (plus the C++ runtime into /rootfs-cxx-libs, which
 # only alpine copies); the final stages copy only those artifacts so the
-# published images carry no build tooling.
+# published images carry no build tooling. Neither target installs binutils
+# ("objcopy"), which jlink's --strip-debug needs; see "jlink" in README.md.
 
 # https://www.debian.org/releases/
 FROM debian:trixie@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c AS jdk
@@ -70,9 +71,6 @@ FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cab
 
 ENV JAVA_HOME=/opt/java
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
-
-# binutils provides "objcopy", required by jlink's --strip-debug to remove native debug symbols.
-#RUN apk add --no-cache binutils
 
 COPY --from=jdk /opt/java /opt/java
 # glibc C runtime required by the (glibc) JDK launcher and libjvm, staged by the

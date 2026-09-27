@@ -101,6 +101,23 @@ cannot download a daemon JDK ("Service 'SystemInfo' is not available"). Alpine
 images published before this was added, such as `26.0.2.1-alpine-3.24` and
 `27-ea34-alpine-3.24`, do not include it.
 
+## jlink
+
+The images do not include `objcopy` (binutils), so `jlink --strip-debug` and
+`--strip-native-debug-symbols` fail with `Cannot run program "objcopy"`: on
+Linux `--strip-debug` strips native debug symbols as well as Java debug
+attributes, and the native part needs objcopy. The jdk.java.net builds ship
+their native libraries without debug sections (checked for JDK 27 and 28-ea+17
+on both architectures), so that part would remove nothing:
+`--strip-java-debug-attributes` gives a runtime image of the same size without
+objcopy. On JDK 27 (aarch64) a 9-module runtime shrinks from 49.1 MB to 45.5 MB
+either way, all of it in `lib/modules`.
+
+Both options drop line numbers from stack traces (`Unknown Source`) for every
+module linked into the image, your own included; leave both off to keep them.
+If you want `--strip-debug` anyway, install `binutils` in your own build stage;
+it adds about 33 MB on Debian and 19 MB on Alpine.
+
 ## Building locally
 
 Every JDK build arg is required (the `Dockerfile` declares them without

@@ -33,15 +33,15 @@ currently published tags are:
 |---------|----------|-------------------------|
 | GA      | `debian` | `27-debian-trixie`      |
 | GA      | `alpine` | `27-alpine-3.24`        |
-| EA      | `debian` | `28-ea15-debian-trixie` |
-| EA      | `alpine` | `28-ea15-alpine-3.24`   |
+| EA      | `debian` | `28-ea17-debian-trixie` |
+| EA      | `alpine` | `28-ea17-alpine-3.24`   |
 
 Common properties across all tags:
 
 | Property        | Value                                              |
 |-----------------|----------------------------------------------------|
 | Base            | `debian:trixie` / `alpine:3.24` (pinned by digest) |
-| OpenJDK source  | jdk.java.net (GA `27`, EA `28-ea+15`)              |
+| OpenJDK source  | jdk.java.net (GA `27`, EA `28-ea+17`)              |
 | `JAVA_HOME`     | `/opt/java`                                        |
 | Architectures   | `linux/amd64`, `linux/arm64`                       |
 
@@ -67,11 +67,11 @@ On a newer JDK, Groovy DSL build scripts and build logic compiled for that JDK
 `Unsupported class file major version`, so use a Gradle release that supports
 running on the image's JDK:
 
-| Image tags                      | JDK        | Gradle supported to run on it                        |
-|---------------------------------|------------|------------------------------------------------------|
-| `26.0.2.1-*` (previous release) | `26.0.2.1` | 9.4.0 and later                                      |
-| `27-*`                          | `27`       | 9.8.0 and later (release candidate as of 2026-09-15) |
-| `28-ea15-*`                     | `28-ea+15` | none yet (Gradle 9.9.0-milestone-1 stops at 27)      |
+| Image tags                      | JDK        | Gradle supported to run on it                                      |
+|---------------------------------|------------|--------------------------------------------------------------------|
+| `26.0.2.1-*` (previous release) | `26.0.2.1` | 9.4.0 and later                                                    |
+| `27-*`                          | `27`       | 9.8.0 and later                                                    |
+| `28-ea17-*`                     | `28-ea+17` | none as of 2026-09-27 (9.9.0-milestone-2 and nightlies stop at 27) |
 
 With an older Gradle release, keep the daemon on a JDK it supports using
 [daemon JVM criteria](https://docs.gradle.org/current/userguide/gradle_daemon.html#sec:daemon_jvm_criteria),
@@ -142,15 +142,15 @@ Access** release instead, set `JAVA_RELEASE_TYPE=ea` and supply the matching
 docker build \
   --build-arg JAVA_RELEASE_TYPE=ea \
   --build-arg JAVA_VERSION=28 \
-  --build-arg JAVA_BUILD=15 \
-  --build-arg JDK_SHA256_X64=621528ea2be9bcfc995c350d7db6dc6270a212de980dc31e5c1626612bad469d \
-  --build-arg JDK_SHA256_AARCH64=09d100ebcc0a205f809834f79b0bdf5637cc52d2c5ec3ab30a88edba093b2b5f \
+  --build-arg JAVA_BUILD=17 \
+  --build-arg JDK_SHA256_X64=59f29554ce7e6bdfba2c28181f5f7689cad7722d650d8cb7f20d611cfce41808 \
+  --build-arg JDK_SHA256_AARCH64=0894b7bbf4c95f0b8a76d4ee6e78390d4cc3767fad41ffbcdaa4010f03a4f1cc \
   --target debian \
   -t sava-openjdk:local .
 ```
 
 This corresponds to download URLs such as
-`https://download.java.net/java/early_access/jdk28/15/GPL/openjdk-28-ea+15_linux-aarch64_bin.tar.gz`.
+`https://download.java.net/java/early_access/jdk28/17/GPL/openjdk-28-ea+17_linux-aarch64_bin.tar.gz`.
 
 ### Reusable installation script
 
@@ -163,7 +163,7 @@ provided via environment variables:
 | Variable            | Purpose                                                                             |
 |---------------------|-------------------------------------------------------------------------------------|
 | `JAVA_VERSION`      | JDK version. GA: full (e.g. `27` or `26.0.2.1`). EA: major (e.g. `28`). Required.   |
-| `JAVA_BUILD`        | Build number (e.g. `35` for GA, `15` for EA). Required.                             |
+| `JAVA_BUILD`        | Build number (e.g. `35` for GA, `17` for EA). Required.                             |
 | `JAVA_RELEASE_TYPE` | `ga` or `ea`. Required.                                                             |
 | `JAVA_VERSION_HASH` | GA only: the version hash in the download URL. Required for `ga`.                   |
 | `TARGETARCH`         | `amd64`/`arm64` or `x86_64`/`aarch64`. Required.                                    |
@@ -236,6 +236,12 @@ is pushed to both GHCR (`ghcr.io/sava-software/sava-openjdk`) and Docker Hub
 Update the `java_version`/`java_build`/`java_version_hash` (GA only)/`jdk_tag`
 and the `jdk_sha256_x64`/`jdk_sha256_aarch64` values in the workflow matrix when
 bumping the GA or EA release.
+
+Releases (the `X.Y.Z` tags) are numbered after the JDK line of the GA images:
+the major version is the GA JDK major, so `27.0.0` and its successors publish
+JDK 27 GA images. release-please (`always-bump-patch`) only bumps the patch, so
+the commit that moves the GA matrix entries to a new JDK major must end with a
+`Release-As: <major>.0.0` footer (for example `Release-As: 28.0.0`).
 
 The workflow consumes the shared composite actions from
 [`sava-software/sava-build`](https://github.com/sava-software/sava-build)

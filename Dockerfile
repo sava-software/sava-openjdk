@@ -97,13 +97,6 @@ RUN set -eux; \
       done; \
     done
 
-# Gradle detects the Alpine OS as musl and loads its musl native file-events
-# library (.../<arch>-linux-musl/libgradle-fileevents.so), which links the
-# unversioned "libc.so". Alpine only ships the SONAME (libc.musl-<arch>.so.1),
-# so provide a "libc.so" symlink to musl libc; without it Gradle fails to
-# initialise its native services under the (glibc) JDK.
-RUN set -eux; for musl in /lib/ld-musl-*.so.1; do ln -sf "${musl}" /lib/libc.so; done
-
 RUN mkdir -p /rootfs/tmp && chmod 1777 /rootfs/tmp
 
 CMD [ "java", "--version" ]

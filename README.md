@@ -101,6 +101,17 @@ cannot download a daemon JDK ("Service 'SystemInfo' is not available"). Alpine
 images published before this was added, such as `26.0.2.1-alpine-3.24` and
 `27-ea34-alpine-3.24`, do not include it.
 
+Those older Alpine images also carry a `/lib/libc.so` symlink to musl
+(`/lib/ld-musl-<arch>.so.1`); `27-alpine-3.24`, `28-ea17-alpine-3.24` and later
+Alpine images do not. Gradle does not use it with the image's glibc JDK: its
+file-events library picks its musl build only when a file with `-musl-` in its
+name is already mapped into the JVM that starts file watching, which happens
+only if a derived image gets a musl-linked library loaded into that JVM. If
+Gradle then fails with "Could not initialize native services", replace that
+library with a glibc build, as `ROOTFS_CXX_LIBS` does for the C++ runtime, or
+recreate the link with `ln -sf /lib/ld-musl-<arch>.so.1 /lib/libc.so`, which
+lets musl load as a second C library in the JVM.
+
 ## jlink
 
 The images do not include `objcopy` (binutils), so `jlink --strip-debug` and

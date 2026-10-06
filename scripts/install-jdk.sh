@@ -9,7 +9,7 @@
 # are baked in here); callers (Dockerfiles, CI) must supply them explicitly:
 #   JAVA_VERSION       JDK version. GA: full version (e.g. "27" or "26.0.2.1").
 #                      EA: major version (e.g. "28").
-#   JAVA_BUILD         Build number (e.g. "35" for GA, "17" for EA).
+#   JAVA_BUILD         Build number (e.g. "35" for GA, "18" for EA).
 #   JAVA_RELEASE_TYPE  "ga" or "ea".
 #   JAVA_VERSION_HASH  GA only: the version hash in the download URL.
 #   TARGETARCH         Docker target arch ("amd64"/"arm64") or "uname -m"

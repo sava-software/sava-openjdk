@@ -38,13 +38,13 @@ publish workflow produces these tags:
 
 Common properties across all tags:
 
-| Property        | Value                                              |
-|-----------------|----------------------------------------------------|
-| Base            | `debian:trixie` / `alpine:3.24` (pinned by digest) |
-| OpenJDK source  | jdk.java.net (GA `27`, EA `28-ea+18`)              |
-| `JAVA_HOME`     | `/opt/java`                                        |
-| Locale          | `LANG=C.UTF-8`, `LC_ALL=C.UTF-8`                    |
-| Architectures   | `linux/amd64`, `linux/arm64`                       |
+| Property       | Value                                              |
+|----------------|----------------------------------------------------|
+| Base           | `debian:trixie` / `alpine:3.24` (pinned by digest) |
+| OpenJDK source | jdk.java.net (GA `27`, EA `28-ea+18`)              |
+| `JAVA_HOME`    | `/opt/java`                                        |
+| Locale         | `LANG=C.UTF-8`                                     |
+| Architectures  | `linux/amd64`, `linux/arm64`                       |
 
 ## Usage
 
@@ -189,17 +189,17 @@ other Dockerfiles (or run directly in CI). It resolves the GA/EA download URL,
 verifies the sha256 checksum and extracts the JDK into `JAVA_HOME`. Inputs are
 provided via environment variables:
 
-| Variable            | Purpose                                                                             |
-|---------------------|-------------------------------------------------------------------------------------|
-| `JAVA_VERSION`      | JDK version. GA: full (e.g. `27` or `26.0.2.1`). EA: major (e.g. `28`). Required.   |
-| `JAVA_BUILD`        | Build number (e.g. `35` for GA, `17` for EA). Required.                             |
-| `JAVA_RELEASE_TYPE` | `ga` or `ea`. Required.                                                             |
-| `JAVA_VERSION_HASH` | GA only: the version hash in the download URL. Required for `ga`.                   |
-| `TARGETARCH`         | `amd64`/`arm64` or `x86_64`/`aarch64`. Required.                                    |
-| `JDK_SHA256_X64`     | Expected sha256 of the x64 download. Required (unless `JDK_SHA256` is set).         |
-| `JDK_SHA256_AARCH64` | Expected sha256 of the aarch64 download. Required (unless `JDK_SHA256` is set).     |
-| `JDK_SHA256`         | Optional checksum override taking precedence over the per-arch values.             |
-| `JAVA_HOME`          | Install directory. Required.                                                        |
+| Variable             | Purpose                                                                           |
+|----------------------|-----------------------------------------------------------------------------------|
+| `JAVA_VERSION`       | JDK version. GA: full (e.g. `27` or `26.0.2.1`). EA: major (e.g. `28`). Required. |
+| `JAVA_BUILD`         | Build number (e.g. `35` for GA, `18` for EA). Required.                           |
+| `JAVA_RELEASE_TYPE`  | `ga` or `ea`. Required.                                                           |
+| `JAVA_VERSION_HASH`  | GA only: the version hash in the download URL. Required for `ga`.                 |
+| `TARGETARCH`         | `amd64`/`arm64` or `x86_64`/`aarch64`. Required.                                  |
+| `JDK_SHA256_X64`     | Expected sha256 of the x64 download. Required (unless `JDK_SHA256` is set).       |
+| `JDK_SHA256_AARCH64` | Expected sha256 of the aarch64 download. Required (unless `JDK_SHA256` is set).   |
+| `JDK_SHA256`         | Optional checksum override taking precedence over the per-arch values.            |
+| `JAVA_HOME`          | Install directory. Required.                                                      |
 
 To reuse it in another Dockerfile:
 
@@ -249,9 +249,16 @@ COPY scripts/stage-rootfs-libs.sh /usr/local/bin/stage-rootfs-libs.sh
 RUN /usr/local/bin/stage-rootfs-libs.sh
 ```
 
-The Debian and Alpine images select UTF-8 by default. `LC_ALL` takes precedence
-over `LANG`; consumers selecting another locale must override or unset `LC_ALL`
-and supply that locale's data.
+The Debian and Alpine images select UTF-8 by default with `LANG=C.UTF-8` and
+leave `LC_ALL` unset. Consumers can override `LANG` and supply the selected
+locale's data. A consumer-supplied `LC_ALL` takes precedence over `LANG`.
+
+Starting with release **27.0.1**, this changes Java's default locale from `en-US`
+to territory-neutral `en`. For example, default currency formatting uses `¤`
+instead of `$`, and `Currency.getInstance(Locale.getDefault())` throws because
+the locale has no country. Applications should select a locale explicitly for
+regional formatting. To retain the previous US Java defaults while keeping
+native UTF-8 decoding, launch Java with `-Duser.language=en -Duser.country=US`.
 
 Downstream `FROM scratch` stages must select the locale themselves: `COPY`
 transfers files, not the source image's environment. With a custom runtime
@@ -260,14 +267,15 @@ already built at `/app/runtime` in the `build` stage:
 ```dockerfile
 FROM scratch
 COPY --from=build /rootfs-libs/ /
-COPY --from=build /rootfs/tmp /tmp
+# Copy the parent tree to preserve /tmp's mode 1777 for non-root processes.
+COPY --from=build /rootfs/ /
 COPY --from=build /app/runtime /opt/java
-ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
 ENTRYPOINT ["/opt/java/bin/java"]
 ```
 
-Images published before this fix omit the locale from `/rootfs-libs`. Merely
-setting `LANG` in a scratch image made from that older bundle is insufficient;
+Images from release **27.0.0 and earlier** omit the locale from `/rootfs-libs`.
+Merely setting `LANG` in a scratch image made from that older bundle is insufficient;
 update its pinned base image and rebuild. This does not repair data previously
 created using an incorrectly decoded password.
 
@@ -281,13 +289,15 @@ python3 scripts/test-utf8.py sava-openjdk:local --platform linux/arm64
 
 Use `linux/amd64` when testing that architecture. The checks require Python 3,
 Docker Buildx, and native execution or emulation for the selected platform.
-They test the base image and a derived scratch `jlink` runtime, asserting Java's
-native encoding and exact Unicode environment and console-password input through
-a real terminal. ASCII input remains a control; forcing the C locale must fail
-the Unicode check. Test containers have networking disabled and use only synthetic
-input. Temporary test images are removed after the run; the supplied base image
-is retained. The publish workflow runs these checks for both architectures and
-both image variants on each GA and EA build before publishing.
+They test the base image and a derived scratch `jlink` runtime as UID/GID 10001,
+asserting `/tmp` has mode 1777 and supports temporary-file creation, Java's native
+encoding, and exact Unicode environment and console-password input through a real
+terminal. They also check the default Java locale and the US-property override.
+ASCII input remains a control; forcing `LANG=C`, alone or with `LC_ALL=C`, must
+fail the native-encoding check. Test containers have networking disabled and use
+only synthetic input. Probe failures report the image, platform, target, mode and
+probe output, with synthetic input redacted. Temporary test images are removed after
+the run; the supplied base image is retained.
 
 ## Publishing
 
@@ -299,6 +309,13 @@ GHCR and Docker Hub on version tag pushes (`X.Y.Z`). All JDK build args
 (`JAVA_RELEASE_TYPE`, `JAVA_VERSION`, `JAVA_BUILD`, `JAVA_VERSION_HASH`, and the
 per-architecture `JDK_SHA256_X64` / `JDK_SHA256_AARCH64` checksums) are defined
 explicitly per matrix entry.
+
+Pull requests and manual workflow runs execute the same validation matrix without
+registry login or publication. It checks both architectures of every GA/EA and
+Debian/Alpine image, including each exported scratch runtime. Each test Docker
+operation gets a 600-second timeout to accommodate QEMU on the `ubuntu-24.04`
+runner. Tag publication waits for every validation entry to pass. Use a pull
+request or manual run to exercise the gate in Actions before releasing.
 
 Each image tag combines the JDK version with the OS / OS version, producing the
 four tags listed in the [Contents](#contents) table. The same tag set
@@ -315,12 +332,12 @@ JDK 27 GA images. release-please (`always-bump-patch`) only bumps the patch, so
 the commit that moves the GA matrix entries to a new JDK major must end with a
 `Release-As: <major>.0.0` footer (for example `Release-As: 28.0.0`).
 
-The workflow consumes the shared composite actions from
+The publishing job consumes the shared composite actions from
 [`sava-software/sava-build`](https://github.com/sava-software/sava-build)
 (`docker-setup` for QEMU + Buildx + registry login, and `docker-build-image`
-for `metadata-action` + `build-push-action`). This keeps the pinned SHAs for the
-third-party Docker actions in a single place (the `sava-build` repo); they are
-referenced here as `…@main`.
+for `metadata-action` + `build-push-action`), referenced here as `…@main`.
+The validation job uses pinned QEMU and Buildx actions directly because it needs
+no registry login.
 
 ### Required repository configuration
 

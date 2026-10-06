@@ -68,13 +68,20 @@ def main():
         except (OSError, subprocess.TimeoutExpired):
             pass
 
-    def probe(image, mode, negative=False):
+    def probe(image, target, mode, locale_override=None):
+        label = f"{args.image} [{args.platform or 'native'}] {target}/{mode}"
+        if locale_override:
+            label += f" ({locale_override} C-locale control)"
         name = f"sava-openjdk-utf8-{run_id}-{uuid.uuid4().hex[:8]}"
         containers.add(name)
         argv = ["docker", "run", "--rm", "--name", name, "--network", "none", *platform,
                 "--env", f"UTF8_PROBE_TEXT={UNICODE}", "--env", f"UTF8_PROBE_ASCII={ASCII}"]
-        if negative:
-            argv += ["--env", "LANG=C", "--env", "LC_ALL=C"]
+        if locale_override:
+            argv += ["--env", "LANG=C"]
+            if locale_override == "LANG+LC_ALL":
+                argv += ["--env", "LC_ALL=C"]
+        if mode == "locale-us":
+            argv += ["--env", "JAVA_TOOL_OPTIONS=-Duser.language=en -Duser.country=US"]
         console = mode.startswith("console-")
         if console:
             argv += ["--interactive", "--tty"]
@@ -82,12 +89,14 @@ def main():
         process = None
         master = slave = None
         completed = False
+        output = b""
         try:
             if not console:
                 process = subprocess.Popen(argv, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                 try:
                     output, _ = process.communicate(timeout=args.timeout)
                 except subprocess.TimeoutExpired as exc:
+                    output = exc.output or b""
                     raise TestFailure("probe timed out") from exc
             else:
                 master, slave = pty.openpty()
@@ -128,11 +137,20 @@ def main():
                 if text.encode("utf-8") in output:
                     raise TestFailure("console password was echoed")
             completed = True
-            if negative:
+            if locale_override:
                 if process.returncode != 42 or ENCODING_FAILURE not in output:
                     raise TestFailure("C-locale control did not detect non-UTF-8 native encoding")
             elif process.returncode != 0 or OK not in output:
                 raise TestFailure(f"probe failed (exit {process.returncode})")
+        except (TestFailure, OSError, subprocess.TimeoutExpired) as exc:
+            # Probe containers receive only synthetic inputs. Retain JVM diagnostics,
+            # but redact those inputs even when a failed console echoes them.
+            diagnostic = bytes(output).decode("utf-8", errors="replace")
+            for value in (UNICODE, ASCII):
+                diagnostic = diagnostic.replace(value, "<synthetic input>")
+            diagnostic = diagnostic[-8192:].strip()
+            detail = f"\nProbe output:\n{diagnostic}" if diagnostic else "\nProbe produced no output."
+            raise TestFailure(f"{label}: {exc}{detail}") from exc
         finally:
             if not completed:
                 stop_own_container(name)
@@ -167,12 +185,13 @@ def main():
                     f"build {target}", stream=True)
             print(f"PASS {target}: test image built", flush=True)
         for target, image in zip(targets, images):
-            for mode in ("environment", "console-ascii", "console-unicode"):
-                probe(image, mode)
+            for mode in ("environment", "console-ascii", "console-unicode", "locale-us"):
+                probe(image, target, mode)
                 print(f"PASS {target}: {mode}", flush=True)
-            probe(image, "environment", negative=True)
-            print(f"PASS {target}: C-locale negative control", flush=True)
-        print("PASS: 6 UTF-8 cases and 2 C-locale controls")
+            for locale_override in ("LANG", "LANG+LC_ALL"):
+                probe(image, target, "environment", locale_override=locale_override)
+                print(f"PASS {target}: {locale_override} C-locale negative control", flush=True)
+        print("PASS: 8 UTF-8/locale cases and 4 C-locale controls, all non-root with writable sticky /tmp")
         return 0
     except TestFailure as exc:
         print(f"FAIL: {exc}", file=sys.stderr)

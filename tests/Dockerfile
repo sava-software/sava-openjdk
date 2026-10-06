@@ -8,13 +8,16 @@ RUN javac -d /probe/classes /probe/Utf8Probe.java && \
 # Check the published image's inherited locale defaults.
 FROM ${BASE_IMAGE} AS direct
 COPY --from=prepared /probe/classes /probe/classes
+USER 10001:10001
 ENTRYPOINT ["/opt/java/bin/java", "-cp", "/probe/classes", "Utf8Probe"]
 
 # COPY exports files, not the base image's environment defaults.
 FROM scratch AS scratch-runtime
-ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
 COPY --from=prepared /rootfs-libs/ /
-COPY --from=prepared /rootfs/tmp/ /tmp/
+# Copy the parent tree to preserve /tmp's sticky, world-writable mode.
+COPY --from=prepared /rootfs/ /
 COPY --from=prepared /probe/runtime/ /opt/java/
 COPY --from=prepared /probe/classes /probe/classes
+USER 10001:10001
 ENTRYPOINT ["/opt/java/bin/java", "-cp", "/probe/classes", "Utf8Probe"]

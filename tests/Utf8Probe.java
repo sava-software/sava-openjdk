@@ -1,7 +1,12 @@
 import java.io.Console;
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Currency;
+import java.util.Locale;
 
 /** Regression probe for native UTF-8 decoding in the published and exported runtimes. */
 public final class Utf8Probe {
@@ -22,14 +27,27 @@ public final class Utf8Probe {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
+        Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
+        int mode = (Integer) Files.getAttribute(tmp, "unix:mode");
+        require((mode & 07777) == 01777, "Temporary directory must have mode 1777");
+        Path temporaryFile = Files.createTempFile(tmp, "utf8-probe-", ".tmp");
+        Files.delete(temporaryFile);
         requireUtf8("native.encoding");
         requireUtf8("sun.jnu.encoding");
         require(UNICODE.equals(System.getenv("UTF8_PROBE_TEXT")), "Unicode environment decoding failed");
         require(ASCII.equals(System.getenv("UTF8_PROBE_ASCII")), "ASCII environment decoding failed");
         require(args.length == 1, "Expected one probe mode");
+        boolean usLocale = args[0].equals("locale-us");
+        Locale expectedLocale = usLocale ? Locale.US : Locale.ENGLISH;
+        require(Locale.getDefault().equals(expectedLocale), "Unexpected default Java locale");
+        require(Locale.getDefault(Locale.Category.FORMAT).equals(expectedLocale), "Unexpected Java format locale");
+        if (usLocale) {
+            require(Currency.getInstance(Locale.getDefault()).equals(Currency.getInstance("USD")),
+                    "US Java locale must resolve USD");
+        }
 
-        if (!args[0].equals("environment")) {
+        if (!args[0].equals("environment") && !usLocale) {
             require(args[0].equals("console-unicode") || args[0].equals("console-ascii"), "Unknown probe mode");
             Console console = System.console();
             require(console != null, "A controlling terminal is required");

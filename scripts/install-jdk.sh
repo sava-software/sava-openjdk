@@ -23,7 +23,7 @@
 #   JAVA_HOME          Install directory.
 #
 # Example EA download URL:
-#   https://download.java.net/java/early_access/jdk28/17/GPL/openjdk-28-ea+17_linux-aarch64_bin.tar.gz
+#   https://download.java.net/java/early_access/jdk28/18/GPL/openjdk-28-ea+18_linux-aarch64_bin.tar.gz
 
 set -eu
 

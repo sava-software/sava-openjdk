@@ -27,21 +27,21 @@ The images are published to both registries (identical tag sets):
 ## Contents
 
 Each published tag combines the OpenJDK version with the OS / OS version. The
-currently published tags are:
+publish workflow produces these tags:
 
 | Release | Variant  | Tag                     |
 |---------|----------|-------------------------|
 | GA      | `debian` | `27-debian-trixie`      |
 | GA      | `alpine` | `27-alpine-3.24`        |
-| EA      | `debian` | `28-ea17-debian-trixie` |
-| EA      | `alpine` | `28-ea17-alpine-3.24`   |
+| EA      | `debian` | `28-ea18-debian-trixie` |
+| EA      | `alpine` | `28-ea18-alpine-3.24`   |
 
 Common properties across all tags:
 
 | Property        | Value                                              |
 |-----------------|----------------------------------------------------|
 | Base            | `debian:trixie` / `alpine:3.24` (pinned by digest) |
-| OpenJDK source  | jdk.java.net (GA `27`, EA `28-ea+17`)              |
+| OpenJDK source  | jdk.java.net (GA `27`, EA `28-ea+18`)              |
 | `JAVA_HOME`     | `/opt/java`                                        |
 | Locale          | `LANG=C.UTF-8`, `LC_ALL=C.UTF-8`                    |
 | Architectures   | `linux/amd64`, `linux/arm64`                       |
@@ -72,7 +72,7 @@ running on the image's JDK:
 |---------------------------------|------------|--------------------------------------------------------------------|
 | `26.0.2.1-*` (previous release) | `26.0.2.1` | 9.4.0 and later                                                    |
 | `27-*`                          | `27`       | 9.8.0 and later                                                    |
-| `28-ea17-*`                     | `28-ea+17` | none as of 2026-09-27 (9.9.0-milestone-2 and nightlies stop at 27) |
+| `28-ea18-*`                     | `28-ea+18` | Not supported by Gradle 9.8.0 (checked 2026-10-06)                 |
 
 With an older Gradle release, keep the daemon on a JDK it supports using
 [daemon JVM criteria](https://docs.gradle.org/current/userguide/gradle_daemon.html#sec:daemon_jvm_criteria),
@@ -171,15 +171,15 @@ Access** release instead, set `JAVA_RELEASE_TYPE=ea` and supply the matching
 docker build \
   --build-arg JAVA_RELEASE_TYPE=ea \
   --build-arg JAVA_VERSION=28 \
-  --build-arg JAVA_BUILD=17 \
-  --build-arg JDK_SHA256_X64=59f29554ce7e6bdfba2c28181f5f7689cad7722d650d8cb7f20d611cfce41808 \
-  --build-arg JDK_SHA256_AARCH64=0894b7bbf4c95f0b8a76d4ee6e78390d4cc3767fad41ffbcdaa4010f03a4f1cc \
+  --build-arg JAVA_BUILD=18 \
+  --build-arg JDK_SHA256_X64=9901071672629d07caff1d5d50db34cecabf36aa3336e9fad4dbed5e8876fa40 \
+  --build-arg JDK_SHA256_AARCH64=2303bdc1f3afaebd79e81fbcf4d5ca707c9bc645170f0e3a328ba717f6916b9d \
   --target debian \
   -t sava-openjdk:local .
 ```
 
 This corresponds to download URLs such as
-`https://download.java.net/java/early_access/jdk28/17/GPL/openjdk-28-ea+17_linux-aarch64_bin.tar.gz`.
+`https://download.java.net/java/early_access/jdk28/18/GPL/openjdk-28-ea+18_linux-aarch64_bin.tar.gz`.
 
 ### Reusable installation script
 
@@ -301,7 +301,7 @@ per-architecture `JDK_SHA256_X64` / `JDK_SHA256_AARCH64` checksums) are defined
 explicitly per matrix entry.
 
 Each image tag combines the JDK version with the OS / OS version, producing the
-four published tags listed in the [Contents](#contents) table. The same tag set
+four tags listed in the [Contents](#contents) table. The same tag set
 is pushed to both GHCR (`ghcr.io/sava-software/sava-openjdk`) and Docker Hub
 (`jpe7s/sava-openjdk`).
 

@@ -16,7 +16,7 @@
 # ("objcopy"), which jlink's --strip-debug needs; see "jlink" in README.md.
 
 # https://www.debian.org/releases/
-FROM debian:trixie@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c AS jdk
+FROM debian:trixie@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5 AS jdk
 
 # Build args are intentionally declared without defaults; the values for the
 # currently published builds live in the CI publish matrix
@@ -49,7 +49,7 @@ COPY scripts/stage-rootfs-libs.sh /usr/local/bin/stage-rootfs-libs.sh
 RUN ROOTFS_CXX_LIBS=/rootfs-cxx-libs /usr/local/bin/stage-rootfs-libs.sh
 
 # --- final: debian runtime ---
-FROM debian:trixie@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c AS debian
+FROM debian:trixie@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5 AS debian
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV JAVA_HOME=/opt/java

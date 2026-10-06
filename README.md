@@ -19,8 +19,8 @@ the two intended workloads — building Gradle projects and running `jlink`:
 
 Select a variant with `docker build --target <name>`.
 
-From release 27.0.2, each image is published once to both registries with the same
-tag and digest:
+From release 27.0.2, each image is published once to every configured registry
+with the same tag and digest:
 
 - **GitHub Container Registry:** `ghcr.io/sava-software/sava-openjdk`
 - **Docker Hub:** `jpe7s/sava-openjdk`
@@ -361,7 +361,7 @@ Tag pushes list the references and defer the registry check to the publish job.
 
 For each entry, the publish job checks both registries again before any build:
 
-| Registry state                          | First attempt  | Re-run of failed jobs                       |
+| Registry state                          | First attempt  | Re-run (attempt > 1)                        |
 |-----------------------------------------|----------------|---------------------------------------------|
 | Absent everywhere                       | Build and push | Build and push                              |
 | Present everywhere with the same digest | Fail           | Skip the build and push                     |
@@ -378,8 +378,10 @@ Entries are independent, so a failure in one does not undo the others.
 
 Use **Re-run failed jobs** to finish a partially published entry. For a GHCR-only
 tag, a maintainer must first read `org.opencontainers.image.revision` on that
-image. Only if it matches the release commit may the maintainer copy the image
-by digest to Docker Hub with `docker buildx imagetools create --tag
+image. Only if it matches the release commit may the maintainer copy the image.
+Before copying, authenticate to Docker Hub with push rights to the destination
+repository (`docker login docker.io`). Copy by digest with
+`docker buildx imagetools create --tag
 <dockerhub>:<tag> <ghcr>@sha256:<digest>`, then re-run the failed jobs. Release
 Git tags are never moved or pushed twice; do not re-run the failed 27.0.1 release
 workflow against its legacy tags.

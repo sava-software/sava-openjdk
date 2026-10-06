@@ -11,7 +11,7 @@
 resolve_registry_images() {
   local component='[a-z0-9]+(([.]|_{1,2}|-+)[a-z0-9]+)*'
   local repository_pattern="^${component}(/${component})*$"
-  local ghcr_repository hub_repository
+  local ghcr_repository hub_repository hub_namespace
 
   if [[ ${GHCR_IMAGE:-} != ghcr.io/* ]]; then
     printf '%s\n' 'GHCR_IMAGE must be ghcr.io/<repository>, without a tag or digest.' >&2
@@ -29,6 +29,13 @@ resolve_registry_images() {
   fi
   hub_repository=${DOCKERHUB_IMAGE:-${DOCKERHUB_USERNAME}/sava-openjdk}
   hub_repository=${hub_repository#docker.io/}
+  if [[ $hub_repository == */* ]]; then
+    hub_namespace=${hub_repository%%/*}
+    if [[ $hub_namespace == *.* || $hub_namespace == *:* || $hub_namespace == localhost ]]; then
+      printf '%s\n' 'DOCKERHUB_IMAGE must be a Docker Hub repository, optionally prefixed with docker.io/.' >&2
+      return 1
+    fi
+  fi
   if [[ ! $hub_repository =~ $repository_pattern ]]; then
     printf '%s\n' 'DOCKERHUB_IMAGE has an invalid lowercase repository path.' >&2
     return 1
@@ -106,7 +113,20 @@ image_state_registry() {
       return 1
     fi
     if [[ $REQUEST_HTTP == 200 ]]; then
-      REGISTRY_DIGEST=$(awk 'tolower($1) == "docker-content-digest:" {sub(/^[^:]*:[ \t]*/, ""); sub(/\r$/, ""); sub(/[ \t]+$/, ""); print}' "$work_dir/headers")
+      # Curl can dump proxy/informational responses before the final response.
+      # Only its header block owns the digest; identical duplicates are harmless.
+      REGISTRY_DIGEST=$(awk '
+        /^HTTP\/[0-9.]+[ \t]+[0-9][0-9][0-9]([ \t\r]|$)/ {
+          headers = 1; seen = 0; conflict = 0; digest = ""; next
+        }
+        /^\r?$/ { headers = 0; next }
+        headers && tolower($0) ~ /^docker-content-digest:/ {
+          sub(/^[^:]*:[ \t]*/, ""); sub(/\r$/, ""); sub(/[ \t]+$/, "")
+          if (substr($0, 1, 7) != "sha256:" || (seen && tolower(digest) != tolower($0))) conflict = 1
+          digest = $0; seen = 1
+        }
+        END { if (seen && !conflict) print digest }
+      ' "$work_dir/headers")
       if [[ ! $REGISTRY_DIGEST =~ ^sha256:[a-fA-F0-9]{64}$ ]]; then
         REGISTRY_DIGEST=''
         printf '%s\n' "$registry_name manifest response has no valid SHA-256 digest." >&2

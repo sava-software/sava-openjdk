@@ -21,6 +21,9 @@ jobs:
   validate:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env: &registry-config
+      DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+      DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
     strategy:
       fail-fast: false
       matrix: &jdk-matrix
@@ -68,6 +71,88 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - &release-image
+        name: Resolve release image references
+        id: dockerhub
+        env:
+          JDK_TAG: ${{ matrix.jdk_tag }}
+          OS_TAG: ${{ matrix.os_tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if ! version=$(jq -er '.["."] | select(type == "string") | select(test("\\A[0-9]+\\.[0-9]+\\.[0-9]+\\z"))' .release-please-manifest.json); then
+            echo '::error::The release manifest must contain a string version X.Y.Z under ".".'
+            exit 1
+          fi
+          if [[ "$EVENT_NAME" == push && "$REF_TYPE" == tag && "$version" != "$REF_NAME" ]]; then
+            echo '::error::The release manifest version does not match the pushed Git tag.'
+            exit 1
+          fi
+          tag="${version}-jdk${JDK_TAG}-${OS_TAG}"
+          if [[ ! "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo '::error::The rendered image tag is invalid; refusing metadata-action tag rewriting.'
+            exit 1
+          fi
+          # Only load the resolver; the script's subshell entry point does not run.
+          # shellcheck source=/dev/null
+          source .github/scripts/image-state.sh
+          resolve_registry_images
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "ghcr_image=$GHCR_IMAGE"
+            echo "image=$DOCKERHUB_IMAGE"
+            if [[ -n "$DOCKERHUB_IMAGE" ]]; then
+              echo 'enabled=true'
+            else
+              echo 'enabled=false'
+            fi
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check release tag availability
+        env:
+          VERSION: ${{ steps.dockerhub.outputs.version }}
+          IMAGE_TAG: ${{ steps.dockerhub.outputs.tag }}
+          GHCR_IMAGE: ${{ steps.dockerhub.outputs.ghcr_image }}
+          DOCKERHUB_IMAGE: ${{ steps.dockerhub.outputs.image }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" > /dev/null; then
+            released=true
+          else
+            status=$?
+            if [[ "$status" != 2 ]]; then
+              echo '::error::Could not determine whether the release version already has a Git tag.'
+              exit "$status"
+            fi
+            released=false
+          fi
+          if [[ "$released" == true && ! ( "$EVENT_NAME" == push && "$REF_TYPE" == tag ) ]]; then
+            message="version ${VERSION} is already released; this run publishes nothing"
+            echo "::notice::$message"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          message="release ${VERSION} will publish"
+          echo "::notice::$message"
+          echo "$message" >> "$GITHUB_STEP_SUMMARY"
+          references=("${GHCR_IMAGE}:${IMAGE_TAG}")
+          if [[ -n "$DOCKERHUB_IMAGE" ]]; then
+            references+=("${DOCKERHUB_IMAGE}:${IMAGE_TAG}")
+          fi
+          printf '%s\n' "${references[@]}"
+          printf '\n- %s\n' "${references[@]}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$EVENT_NAME" == push && "$REF_TYPE" == tag ]]; then
+            exit 0
+          fi
+          state=$(bash .github/scripts/image-state.sh "$IMAGE_TAG")
+          if [[ "$state" != absent ]]; then
+            echo '::error::An unreleased version must use image tags absent from every configured registry.'
+            exit 1
+          fi
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1
         with:
@@ -104,6 +189,7 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     needs: validate
     runs-on: ubuntu-24.04
+    env: *registry-config
     permissions:
       contents: read
       packages: write
@@ -114,22 +200,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Resolve Docker Hub image name
-        id: dockerhub
-        env:
-          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
-          DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
-        run: |
-          if [ -n "${DOCKERHUB_USERNAME}" ]; then
-            image="${DOCKERHUB_IMAGE}"
-            if [ -z "${image}" ]; then
-              image="${DOCKERHUB_USERNAME}/sava-openjdk"
-            fi
-            echo "image=${image}" >> "${GITHUB_OUTPUT}"
-            echo "enabled=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "enabled=false" >> "${GITHUB_OUTPUT}"
-          fi
+      - *release-image
 
       - name: Docker setup (GHCR)
         uses: sava-software/sava-build/.github/actions/docker-setup@main
@@ -146,12 +217,73 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Read registry state
+        id: registry
+        env:
+          IMAGE_TAG: ${{ steps.dockerhub.outputs.tag }}
+        run: bash .github/scripts/image-state.sh "$IMAGE_TAG"
+
+      - name: Decide how to publish this entry
+        id: publication
+        env:
+          STATE: ${{ steps.registry.outputs.state }}
+          GHCR_STATUS: ${{ steps.registry.outputs.ghcr_status }}
+          DOCKERHUB_STATUS: ${{ steps.registry.outputs.dockerhub_status }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if [[ ! "$RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
+            echo '::error::Invalid workflow run attempt.'
+            exit 1
+          fi
+          case "$STATE" in
+            absent)
+              echo 'action=build' >> "$GITHUB_OUTPUT"
+              ;;
+            published)
+              if (( RUN_ATTEMPT > 1 )); then
+                echo '::notice::This entry is already published with matching digests; skipping the build and push.'
+                echo 'action=skip' >> "$GITHUB_OUTPUT"
+              else
+                echo '::error::An image tag already exists on the first attempt; refusing to publish.'
+                exit 1
+              fi
+              ;;
+            inconsistent)
+              if (( RUN_ATTEMPT > 1 )) && [[ "$DOCKERHUB_STATUS" == present && "$GHCR_STATUS" == absent ]]; then
+                echo 'action=copy' >> "$GITHUB_OUTPUT"
+              else
+                echo '::error::Registry state is inconsistent; refusing to build or overwrite an existing tag. See the registry status and digest report.'
+                if [[ "$GHCR_STATUS" == present && "$DOCKERHUB_STATUS" == absent ]]; then
+                  echo '::error::Maintainer recovery: read org.opencontainers.image.revision on the GHCR image. Only if it equals the release commit, copy that digest to Docker Hub with docker buildx imagetools create, then use Re-run failed jobs.'
+                fi
+                exit 1
+              fi
+              ;;
+            *)
+              echo '::error::No readable registry state; refusing to publish.'
+              exit 1
+              ;;
+          esac
+
+      - name: Copy the existing Docker Hub image to GHCR
+        id: copy
+        if: steps.publication.outputs.action == 'copy'
+        env:
+          IMAGE_TAG: ${{ steps.dockerhub.outputs.tag }}
+          GHCR_IMAGE: ${{ steps.registry.outputs.ghcr_image }}
+          DOCKERHUB_IMAGE: ${{ steps.registry.outputs.dockerhub_image }}
+          SOURCE_DIGEST: ${{ steps.registry.outputs.dockerhub_digest }}
+        run: |
+          docker buildx imagetools create --tag "${GHCR_IMAGE}:${IMAGE_TAG}" "${DOCKERHUB_IMAGE}@${SOURCE_DIGEST}"
+
       - name: Build and push (${{ matrix.release_type }} ${{ matrix.jdk_tag }} ${{ matrix.os_tag }})
+        id: build
+        if: steps.publication.outputs.action == 'build'
         uses: sava-software/sava-build/.github/actions/docker-build-image@main
         with:
           image: |
-            ${{ env.GHCR_IMAGE }}
             ${{ steps.dockerhub.outputs.enabled == 'true' && steps.dockerhub.outputs.image || '' }}
+            ${{ steps.dockerhub.outputs.ghcr_image }}
           dockerfile: ./Dockerfile
           target: ${{ matrix.target }}
           platforms: linux/amd64,linux/arm64
@@ -163,6 +295,39 @@ jobs:
             JDK_SHA256_X64=${{ matrix.jdk_sha256_x64 }}
             JDK_SHA256_AARCH64=${{ matrix.jdk_sha256_aarch64 }}
           tags: |
-            type=raw,value=${{ matrix.jdk_tag }}-${{ matrix.os_tag }}
+            type=raw,value=${{ steps.dockerhub.outputs.tag }}
           cache-from: type=gha,scope=${{ matrix.release_type }}-${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.release_type }}-${{ matrix.target }}
+
+      - name: Read registry state after publication attempt
+        id: postcheck
+        if: &publication-attempted ${{ !cancelled() && (steps.build.outcome == 'success' || steps.build.outcome == 'failure' || steps.copy.outcome == 'success' || steps.copy.outcome == 'failure') }}
+        env:
+          IMAGE_TAG: ${{ steps.dockerhub.outputs.tag }}
+        run: bash .github/scripts/image-state.sh --wait "$IMAGE_TAG"
+
+      - name: Verify the published digest
+        if: *publication-attempted
+        env:
+          STATE: ${{ steps.postcheck.outputs.state }}
+          GHCR_STATUS: ${{ steps.postcheck.outputs.ghcr_status }}
+          DOCKERHUB_STATUS: ${{ steps.postcheck.outputs.dockerhub_status }}
+          OBSERVED_DIGEST: ${{ steps.postcheck.outputs.ghcr_digest }}
+          EXPECTED_DIGEST: ${{ steps.publication.outputs.action == 'copy' && steps.registry.outputs.dockerhub_digest || steps.build.outputs.digest }}
+        run: |
+          if [[ -z "$STATE" || "$STATE" == error ]]; then
+            echo '::error::Registry state could not be read after the publication attempt.'
+            exit 1
+          fi
+          if [[ "$STATE" == published && "$EXPECTED_DIGEST" =~ ^sha256:[a-f0-9]{64}$ && "$OBSERVED_DIGEST" != "$EXPECTED_DIGEST" ]]; then
+            echo '::error::The tag holds a digest this run did not build or copy. Investigate the unexpected digest; do not re-run.'
+            exit 1
+          fi
+          if [[ "$STATE" != published || ! "$EXPECTED_DIGEST" =~ ^sha256:[a-f0-9]{64}$ || "$OBSERVED_DIGEST" != "$EXPECTED_DIGEST" ]]; then
+            echo '::error::The configured registries do not confirm the expected published digest. Use Re-run failed jobs to finish a partially published entry; do not move or push the release Git tag again.'
+            if [[ "$GHCR_STATUS" == present && "$DOCKERHUB_STATUS" == absent ]]; then
+              echo '::error::Maintainer recovery: read org.opencontainers.image.revision on the GHCR image. Only if it equals the release commit, copy that digest to Docker Hub with docker buildx imagetools create before re-running the failed jobs.'
+            fi
+            exit 1
+          fi
+          echo "::notice::Publication verified at ${OBSERVED_DIGEST}."

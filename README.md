@@ -19,24 +19,29 @@ the two intended workloads — building Gradle projects and running `jlink`:
 
 Select a variant with `docker build --target <name>`.
 
-The images are published to both registries (identical tag sets):
+From release 27.0.2, each image is published once to both registries with the same
+tag and digest:
 
 - **GitHub Container Registry:** `ghcr.io/sava-software/sava-openjdk`
 - **Docker Hub:** `jpe7s/sava-openjdk`
 
 ## Contents
 
-Each published tag combines the OpenJDK version with the OS / OS version. The
-publish workflow produces these tags:
+The tag format is `<release>-jdk<jdk_tag>-<os_tag>`. The leading `X.Y.Z` is the
+sava-openjdk release version, `jdk<...>` identifies the OpenJDK version/build,
+and the final segment identifies the OS and its version. For example, release
+27.0.2 publishes:
 
-| Release | Variant  | Tag                     |
-|---------|----------|-------------------------|
-| GA      | `debian` | `27-debian-trixie`      |
-| GA      | `alpine` | `27-alpine-3.24`        |
-| EA      | `debian` | `28-ea18-debian-trixie` |
-| EA      | `alpine` | `28-ea18-alpine-3.24`   |
+| JDK channel | Variant  | Tag                               |
+|-------------|----------|-----------------------------------|
+| GA          | `debian` | `27.0.2-jdk27-debian-trixie`      |
+| GA          | `alpine` | `27.0.2-jdk27-alpine-3.24`        |
+| EA          | `debian` | `27.0.2-jdk28-ea18-debian-trixie` |
+| EA          | `alpine` | `27.0.2-jdk28-ea18-alpine-3.24`   |
 
-Common properties across all tags:
+These tags are never moved. There are no floating or `latest` tags.
+
+Common properties across the current images:
 
 | Property       | Value                                              |
 |----------------|----------------------------------------------------|
@@ -48,15 +53,31 @@ Common properties across all tags:
 
 ## Usage
 
-Pull from either registry — the tag sets are identical:
+Pull a release-versioned tag from either registry:
 
 ```dockerfile
 # GitHub Container Registry
-FROM ghcr.io/sava-software/sava-openjdk:27-debian-trixie
+FROM ghcr.io/sava-software/sava-openjdk:27.0.2-jdk27-debian-trixie
 # ...or Docker Hub
-# FROM jpe7s/sava-openjdk:27-debian-trixie
+# FROM jpe7s/sava-openjdk:27.0.2-jdk27-debian-trixie
 # java, javac, jlink, ... are already on PATH and JAVA_HOME is set
 ```
+
+For a digest pin, append `@sha256:<digest>` to the full `image:tag` reference,
+using the published index digest. The tag records the release; the digest pins
+the exact image.
+
+A release that rebuilds the same JDK changes only the leading release version,
+which Dependabot and Renovate can follow in a literal `FROM` line. A JDK update,
+new EA build or new major changes the `jdk<...>` segment and needs a manual edit.
+
+### Legacy tags
+
+Every tag from before 27.0.2 remains pullable and will never be updated. Docker
+Hub's `27-*` tags still contain the 27.0.0 images, while GHCR's `27-*` contain
+27.0.1 images: the 27.0.1 GA images reached GHCR only. The `28-ea18-*` tags
+contain 27.0.1 images on both registries. Other legacy tags retain their older
+images. Do not assume that a legacy tag has the same digest on both registries.
 
 ## Gradle compatibility
 
@@ -68,11 +89,13 @@ On a newer JDK, Groovy DSL build scripts and build logic compiled for that JDK
 `Unsupported class file major version`, so use a Gradle release that supports
 running on the image's JDK:
 
-| Image tags                      | JDK        | Gradle supported to run on it                                      |
-|---------------------------------|------------|--------------------------------------------------------------------|
-| `26.0.2.1-*` (previous release) | `26.0.2.1` | 9.4.0 and later                                                    |
-| `27-*`                          | `27`       | 9.8.0 and later                                                    |
-| `28-ea18-*`                     | `28-ea+18` | Not supported by Gradle 9.8.0 (checked 2026-10-06)                 |
+| Image tags            | JDK        | Gradle supported to run on it                      |
+|-----------------------|------------|----------------------------------------------------|
+| `*-jdk27-*`           | `27`       | 9.8.0 and later                                    |
+| `*-jdk28-ea18-*`      | `28-ea+18` | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
+| `26.0.2.1-*` (legacy) | `26.0.2.1` | 9.4.0 and later                                    |
+| `27-*` (legacy)       | `27`       | 9.8.0 and later                                    |
+| `28-ea18-*` (legacy)  | `28-ea+18` | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
 
 With an older Gradle release, keep the daemon on a JDK it supports using
 [daemon JVM criteria](https://docs.gradle.org/current/userguide/gradle_daemon.html#sec:daemon_jvm_criteria),
@@ -104,7 +127,8 @@ images published before this was added, such as `26.0.2.1-alpine-3.24` and
 
 Those older Alpine images also carry a `/lib/libc.so` symlink to musl
 (`/lib/ld-musl-<arch>.so.1`); `27-alpine-3.24`, `28-ea17-alpine-3.24` and later
-Alpine images do not. Gradle does not use it with the image's glibc JDK: its
+Alpine images, including the release-versioned `*-jdk*-alpine-*` tags, do not.
+Gradle does not use it with the image's glibc JDK: its
 file-events library picks its musl build only when a file with `-musl-` in its
 name is already mapped into the JVM that starts file watching, which happens
 only if a derived image gets a musl-linked library loaded into that JVM. If
@@ -253,10 +277,10 @@ The Debian and Alpine images select UTF-8 by default with `LANG=C.UTF-8` and
 leave `LC_ALL` unset. Consumers can override `LANG` and supply the selected
 locale's data. A consumer-supplied `LC_ALL` takes precedence over `LANG`.
 
-Starting with release **27.0.1**, this changes Java's default locale from `en-US`
-to territory-neutral `en`. The release republishes the existing `27-*` image tags
-with this change, so consumers pulling those tags will adopt it on their next pull;
-consumers pinning image digests control when they adopt it. For example, default
+The UTF-8 default changes Java's default locale from `en-US` to territory-neutral
+`en`. It is present in every 27.0.1 image: `28-ea18-*` on both registries and
+`27-*` on GHCR only. Docker Hub's `27-*` still contain 27.0.0 images. Every image
+from release **27.0.2** onward has the new default. For example, default
 currency formatting uses `¤` instead of `$`, and
 `Currency.getInstance(Locale.getDefault())` throws because the locale has no country.
 Applications should select a locale explicitly for regional formatting. To retain
@@ -277,7 +301,9 @@ ENV LANG=C.UTF-8
 ENTRYPOINT ["/opt/java/bin/java"]
 ```
 
-Images from release **27.0.0 and earlier** omit the locale from `/rootfs-libs`.
+Images from release **27.0.0 and earlier** omit the locale from `/rootfs-libs`:
+on Docker Hub, this is every legacy tag except `28-ea18-*`; on GHCR, it is every
+legacy tag except `27-*` and `28-ea18-*`.
 Merely setting `LANG` in a scratch image made from that older bundle is insufficient;
 update its pinned base image and rebuild. This does not repair data previously
 created using an incorrectly decoded password.
@@ -321,10 +347,48 @@ workflow's preceding Buildx build of each validation image. Each validation job 
 a 30-minute overall limit. Tag publication waits for every validation entry to pass.
 Use a pull request or manual run to exercise the gate in Actions before releasing.
 
-Each image tag combines the JDK version with the OS / OS version, producing the
-four tags listed in the [Contents](#contents) table. The same tag set
-is pushed to both GHCR (`ghcr.io/sava-software/sava-openjdk`) and Docker Hub
-(`jpe7s/sava-openjdk`).
+The version comes from the `"."` entry of `.release-please-manifest.json` and must
+be `X.Y.Z`; on a tag push it must equal the Git tag. Each matrix entry renders
+`<version>-jdk<jdk_tag>-<os_tag>` once for use in checks and publication. Invalid
+tags fail before metadata-action can rewrite them.
+
+Before the QEMU/Buildx setup, an unreleased version (including a release PR's
+merge ref) lists its full image references and anonymously checks that every
+configured registry lacks those tags. A collision or an unreadable registry
+blocks validation. A PR or manual run for an already released version says it
+publishes nothing and skips this registry check; its runtime checks still run.
+Tag pushes list the references and defer the registry check to the publish job.
+
+For each entry, the publish job checks both registries again before any build:
+
+| Registry state                          | First attempt  | Re-run of failed jobs                       |
+|-----------------------------------------|----------------|---------------------------------------------|
+| Absent everywhere                       | Build and push | Build and push                              |
+| Present everywhere with the same digest | Fail           | Skip the build and push                     |
+| Docker Hub only                         | Fail           | Copy that digest to GHCR without rebuilding |
+| GHCR only, or differing digests         | Fail           | Fail; maintainer intervention required      |
+| Registry cannot be read                 | Fail           | Fail                                        |
+
+Docker Hub is listed before GHCR for a new push, but recovery does not depend on
+push order. After a build or copy attempt, even a failed one, the workflow waits
+briefly for visibility and requires every configured registry to report the
+expected digest. A re-run never rebuilds an entry already present on Docker Hub
+and never automatically copies towards Docker Hub or overwrites a GHCR tag.
+Entries are independent, so a failure in one does not undo the others.
+
+Use **Re-run failed jobs** to finish a partially published entry. For a GHCR-only
+tag, a maintainer must first read `org.opencontainers.image.revision` on that
+image. Only if it matches the release commit may the maintainer copy the image
+by digest to Docker Hub with `docker buildx imagetools create --tag
+<dockerhub>:<tag> <ghcr>@sha256:<digest>`, then re-run the failed jobs. Release
+Git tags are never moved or pushed twice; do not re-run the failed 27.0.1 release
+workflow against its legacy tags.
+
+The shared checker is [`.github/scripts/image-state.sh`](./.github/scripts/image-state.sh).
+It uses anonymous pull tokens and manifest HEAD requests, distinguishes an absent
+tag from a registry error, and records each registry's status and digest in the
+log and step summary. Run its local stub tests with
+`python3 .github/scripts/test-image-state.py`.
 
 Update the `java_version`/`java_build`/`java_version_hash` (GA only)/`jdk_tag`
 and the `jdk_sha256_x64`/`jdk_sha256_aarch64` values in the workflow matrix when
@@ -347,10 +411,15 @@ no registry login.
 
 Settings → *Secrets and variables* → *Actions*:
 
-| Type     | Name                 | Purpose                                                           |
-|----------|----------------------|-------------------------------------------------------------------|
-| Variable | `DOCKERHUB_USERNAME` | Docker Hub namespace. If unset, only GHCR is published.           |
-| Variable | `DOCKERHUB_IMAGE`    | Optional full Docker Hub repo. Defaults to `<user>/sava-openjdk`. |
-| Secret   | `DOCKERHUB_TOKEN`    | Docker Hub access token with write scope.                         |
+| Type     | Name                 | Purpose                                                                                             |
+|----------|----------------------|-----------------------------------------------------------------------------------------------------|
+| Variable | `DOCKERHUB_USERNAME` | Docker Hub namespace; may be an organisation variable. If unset, only GHCR is published.            |
+| Variable | `DOCKERHUB_IMAGE`    | Optional Docker Hub repo, with optional `docker.io/` prefix. Defaults to `<username>/sava-openjdk`. |
+| Secret   | `DOCKERHUB_TOKEN`    | Docker Hub access token with write scope.                                                           |
 
 GHCR authentication uses the built-in `GITHUB_TOKEN`; no extra secret needed.
+Both configured repositories must already exist and be public so the validation
+job can check them anonymously. Docker Hub tag immutability must stay enabled as
+the backstop against overwrites. GHCR has no equivalent setting; the workflow
+enforces the same rule there. When `DOCKERHUB_USERNAME` is unset, the checker warns
+that only GHCR was checked and GHCR-only publication remains supported.

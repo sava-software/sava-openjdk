@@ -1,5 +1,16 @@
 # Changelog
 
+## [27.0.2](https://github.com/sava-software/sava-openjdk/compare/27.0.1...27.0.2) (2026-10-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **docker:** Image tags now use `<release>-jdk<jdk_tag>-<os_tag>`, for example `27.0.2-jdk27-debian-trixie`. Tags from before 27.0.2 are no longer updated, and the 27.0.1 GA images reached GHCR only.
+
+### Features
+
+* **docker:** publish release-versioned image tags ([1e4369c](https://github.com/sava-software/sava-openjdk/commit/1e4369c2bfdc9b10a1764d088318eccd03cdf846))
+
 ## [27.0.1](https://github.com/sava-software/sava-openjdk/compare/27.0.0...27.0.1) (2026-10-06)
 
 

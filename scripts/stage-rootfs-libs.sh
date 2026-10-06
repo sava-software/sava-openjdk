@@ -1,5 +1,5 @@
 #!/bin/sh
-# Stage the minimal glibc runtime required by a jlink image into /rootfs-libs.
+# Stage the glibc runtime and UTF-8 locale required by a jlink image into /rootfs-libs.
 #
 # Reusable across Dockerfiles (and CI): downstream sub-stages can then copy the
 # runtime with a single, architecture independent `COPY --from=... /rootfs-libs /`.
@@ -38,6 +38,12 @@ for lib in libc.so.6 libm.so.6 libz.so.1 libdl.so.2 libpthread.so.0 librt.so.1 l
 done
 
 cp -aL "${interp}" "${ROOTFS_LIBS}${interp}"
+
+# Locale data is not a shared-library dependency, so ldd does not find it.
+# Keep it with the matching glibc: scratch consumers otherwise decode native
+# strings (including environment passwords) as ASCII even when LANG is UTF-8.
+mkdir -p "${ROOTFS_LIBS}/usr/lib/locale"
+cp -aL /usr/lib/locale/C.utf8 "${ROOTFS_LIBS}/usr/lib/locale/"
 
 printf 'passwd: files\ngroup: files\nhosts: files dns\n' > "${ROOTFS_LIBS}/etc/nsswitch.conf"
 

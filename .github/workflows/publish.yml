@@ -90,6 +90,30 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Check UTF-8 in base and scratch runtimes
+        env:
+          IMAGE_TARGET: ${{ matrix.target }}
+          RELEASE_TYPE: ${{ matrix.release_type }}
+          JAVA_VERSION: ${{ matrix.java_version }}
+          JAVA_BUILD: ${{ matrix.java_build }}
+          JAVA_VERSION_HASH: ${{ matrix.java_version_hash }}
+          JDK_SHA256_X64: ${{ matrix.jdk_sha256_x64 }}
+          JDK_SHA256_AARCH64: ${{ matrix.jdk_sha256_aarch64 }}
+        run: |
+          for arch in amd64 arm64; do
+            test_image="sava-openjdk:utf8-${RELEASE_TYPE}-${IMAGE_TARGET}-${arch}"
+            docker buildx build --load --platform "linux/${arch}" \
+              --target "${IMAGE_TARGET}" --tag "${test_image}" \
+              --build-arg "JAVA_RELEASE_TYPE=${RELEASE_TYPE}" \
+              --build-arg "JAVA_VERSION=${JAVA_VERSION}" \
+              --build-arg "JAVA_BUILD=${JAVA_BUILD}" \
+              --build-arg "JAVA_VERSION_HASH=${JAVA_VERSION_HASH}" \
+              --build-arg "JDK_SHA256_X64=${JDK_SHA256_X64}" \
+              --build-arg "JDK_SHA256_AARCH64=${JDK_SHA256_AARCH64}" .
+            python3 scripts/test-utf8.py "${test_image}" --platform "linux/${arch}"
+            docker image rm "${test_image}"
+          done
+
       - name: Build and push (${{ matrix.release_type }} ${{ matrix.jdk_tag }} ${{ matrix.os_tag }})
         uses: sava-software/sava-build/.github/actions/docker-build-image@main
         with:

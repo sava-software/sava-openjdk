@@ -8,7 +8,7 @@ can simply `FROM` it instead of re-downloading and checksum-verifying the JDK on
 every build.
 
 The single [`Dockerfile`](./Dockerfile) defines one shared `jdk` build stage
-(downloads, verifies and extracts the JDK, stages the minimal glibc runtime
+(downloads, verifies and extracts the JDK, stages the glibc runtime and UTF-8 locale
 into `/rootfs-libs` and the C++ runtime into `/rootfs-cxx-libs`) followed by two
 interchangeable final runtime targets that each copy only `/opt/java` and
 `/rootfs-libs` from it (`alpine` also copies `/rootfs-cxx-libs`). Both target
@@ -43,6 +43,7 @@ Common properties across all tags:
 | Base            | `debian:trixie` / `alpine:3.24` (pinned by digest) |
 | OpenJDK source  | jdk.java.net (GA `27`, EA `28-ea+17`)              |
 | `JAVA_HOME`     | `/opt/java`                                        |
+| Locale          | `LANG=C.UTF-8`, `LC_ALL=C.UTF-8`                    |
 | Architectures   | `linux/amd64`, `linux/arm64`                       |
 
 ## Usage
@@ -219,12 +220,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certifi
 
 ### Reusable rootfs-libs staging script
 
-The logic that stages the minimal glibc runtime required by a `jlink` image
+The logic that stages the glibc runtime required by a `jlink` image
 lives in [`scripts/stage-rootfs-libs.sh`](./scripts/stage-rootfs-libs.sh) so it
 can be reused by other Dockerfiles (or run directly in CI). It resolves the
 architecture triplet and ELF interpreter from the JDK launcher, then copies the
-minimal shared libraries and a `nsswitch.conf` into an output directory that a
-slim runtime stage can `COPY` wholesale. Inputs are provided via environment
+shared libraries, `nsswitch.conf`, and the matching Debian `C.utf8` locale data
+into an output directory that a slim runtime stage can `COPY` wholesale.
+Missing locale data makes Java decode native strings such as environment
+variables and console passwords as ASCII, even if `file.encoding` is UTF-8.
+Inputs are provided via environment
 variables:
 
 | Variable          | Purpose                                                                                              |
@@ -244,6 +248,46 @@ To reuse it in another Dockerfile:
 COPY scripts/stage-rootfs-libs.sh /usr/local/bin/stage-rootfs-libs.sh
 RUN /usr/local/bin/stage-rootfs-libs.sh
 ```
+
+The Debian and Alpine images select UTF-8 by default. `LC_ALL` takes precedence
+over `LANG`; consumers selecting another locale must override or unset `LC_ALL`
+and supply that locale's data.
+
+Downstream `FROM scratch` stages must select the locale themselves: `COPY`
+transfers files, not the source image's environment. With a custom runtime
+already built at `/app/runtime` in the `build` stage:
+
+```dockerfile
+FROM scratch
+COPY --from=build /rootfs-libs/ /
+COPY --from=build /rootfs/tmp /tmp
+COPY --from=build /app/runtime /opt/java
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENTRYPOINT ["/opt/java/bin/java"]
+```
+
+Images published before this fix omit the locale from `/rootfs-libs`. Merely
+setting `LANG` in a scratch image made from that older bundle is insufficient;
+update its pinned base image and rebuild. This does not repair data previously
+created using an incorrectly decoded password.
+
+### UTF-8 regression checks
+
+After building an image locally, run:
+
+```sh
+python3 scripts/test-utf8.py sava-openjdk:local --platform linux/arm64
+```
+
+Use `linux/amd64` when testing that architecture. The checks require Python 3,
+Docker Buildx, and native execution or emulation for the selected platform.
+They test the base image and a derived scratch `jlink` runtime, asserting Java's
+native encoding and exact Unicode environment and console-password input through
+a real terminal. ASCII input remains a control; forcing the C locale must fail
+the Unicode check. Test containers have networking disabled and use only synthetic
+input. Temporary test images are removed after the run; the supplied base image
+is retained. The publish workflow runs these checks for both architectures and
+both image variants on each GA and EA build before publishing.
 
 ## Publishing
 

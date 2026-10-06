@@ -22,7 +22,7 @@ public final class Utf8Probe {
     private static void requireUtf8(String property) {
         String value = System.getProperty(property);
         if (value == null || !Charset.forName(value).equals(StandardCharsets.UTF_8)) {
-            System.err.println("UTF8_PROBE_ENCODING_FAILURE");
+            System.err.println("UTF8_PROBE_ENCODING_FAILURE " + property + "=" + value);
             System.exit(42);
         }
     }

@@ -131,7 +131,10 @@ def main():
                             sent = True
                     elif process.poll() is not None:
                         break
-                process.wait(timeout=max(0.01, deadline - time.monotonic()))
+                try:
+                    process.wait(timeout=max(0.01, deadline - time.monotonic()))
+                except subprocess.TimeoutExpired as exc:
+                    raise TestFailure("console probe timed out") from exc
                 if not sent:
                     raise TestFailure("console prompt was not reached")
                 if text.encode("utf-8") in output:

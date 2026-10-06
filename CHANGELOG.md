@@ -1,5 +1,22 @@
 # Changelog
 
+## [27.0.1](https://github.com/sava-software/sava-openjdk/compare/27.0.0...27.0.1) (2026-10-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **docker:** UTF-8 defaults change Java's default locale from en-US to en. Select a regional locale explicitly, or use -Duser.language=en -Duser.country=US to retain US Java defaults with native UTF-8 decoding.
+
+### Features
+
+* **docker:** refresh Debian base and update JDK 28 EA to build 18 ([92ecbf1](https://github.com/sava-software/sava-openjdk/commit/92ecbf1a8da6e54fdbd5dad9c61b95603c162b38))
+
+
+### Bug Fixes
+
+* **docker:** preserve scratch tmp permissions and strengthen runtime checks ([92c0277](https://github.com/sava-software/sava-openjdk/commit/92c02778238812f7ad097e44da221f5367d1839b))
+* **docker:** preserve UTF-8 in base and scratch runtimes ([82b4c85](https://github.com/sava-software/sava-openjdk/commit/82b4c85602456ac4d85d8f20e6fd321a13b21d42))
+
 ## [27.0.0](https://github.com/sava-software/sava-openjdk/compare/0.1.3...27.0.0) (2026-09-27)
 
 

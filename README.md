@@ -254,11 +254,14 @@ leave `LC_ALL` unset. Consumers can override `LANG` and supply the selected
 locale's data. A consumer-supplied `LC_ALL` takes precedence over `LANG`.
 
 Starting with release **27.0.1**, this changes Java's default locale from `en-US`
-to territory-neutral `en`. For example, default currency formatting uses `¤`
-instead of `$`, and `Currency.getInstance(Locale.getDefault())` throws because
-the locale has no country. Applications should select a locale explicitly for
-regional formatting. To retain the previous US Java defaults while keeping
-native UTF-8 decoding, launch Java with `-Duser.language=en -Duser.country=US`.
+to territory-neutral `en`. The release republishes the existing `27-*` image tags
+with this change, so consumers pulling those tags will adopt it on their next pull;
+consumers pinning image digests control when they adopt it. For example, default
+currency formatting uses `¤` instead of `$`, and
+`Currency.getInstance(Locale.getDefault())` throws because the locale has no country.
+Applications should select a locale explicitly for regional formatting. To retain
+the previous US Java defaults while keeping native UTF-8 decoding, launch Java with
+`-Duser.language=en -Duser.country=US`.
 
 Downstream `FROM scratch` stages must select the locale themselves: `COPY`
 transfers files, not the source image's environment. With a custom runtime
@@ -312,10 +315,11 @@ explicitly per matrix entry.
 
 Pull requests and manual workflow runs execute the same validation matrix without
 registry login or publication. It checks both architectures of every GA/EA and
-Debian/Alpine image, including each exported scratch runtime. Each test Docker
-operation gets a 600-second timeout to accommodate QEMU on the `ubuntu-24.04`
-runner. Tag publication waits for every validation entry to pass. Use a pull
-request or manual run to exercise the gate in Actions before releasing.
+Debian/Alpine image, including each exported scratch runtime. The 600-second timeout
+applies to Docker operations run inside `scripts/test-utf8.py`; it does not bound the
+workflow's preceding Buildx build of each validation image. Each validation job has
+a 30-minute overall limit. Tag publication waits for every validation entry to pass.
+Use a pull request or manual run to exercise the gate in Actions before releasing.
 
 Each image tag combines the JDK version with the OS / OS version, producing the
 four tags listed in the [Contents](#contents) table. The same tag set

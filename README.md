@@ -74,10 +74,11 @@ new EA build or new major changes the `jdk<...>` segment and needs a manual edit
 ### Legacy tags
 
 Every tag from before 27.0.2 remains pullable and will never be updated. Docker
-Hub's `27-*` tags still contain the 27.0.0 images, while GHCR's `27-*` contain
-27.0.1 images: the 27.0.1 GA images reached GHCR only. The `28-ea18-*` tags
-contain 27.0.1 images on both registries. Other legacy tags retain their older
-images. Do not assume that a legacy tag has the same digest on both registries.
+Hub's `27-debian-trixie` and `27-alpine-3.24` still contain the 27.0.0 images,
+while the same tags on GHCR contain 27.0.1 images: the 27.0.1 GA images reached
+GHCR only. The `28-ea18-*` tags contain 27.0.1 images on both registries. Other
+legacy tags, including `27-ea24-*` and `27-ea34-*`, retain their older images.
+Do not assume that a legacy tag has the same digest on both registries.
 
 ## Gradle compatibility
 
@@ -89,15 +90,16 @@ On a newer JDK, Groovy DSL build scripts and build logic compiled for that JDK
 `Unsupported class file major version`, so use a Gradle release that supports
 running on the image's JDK:
 
-| Image tags            | JDK          | Gradle supported to run on it                      |
-|-----------------------|--------------|----------------------------------------------------|
-| `*-jdk27.0.1.0.2-*`   | `27.0.1.0.2` | 9.8.0 and later                                    |
-| `*-jdk28-ea21-*`      | `28-ea+21`   | Not supported by Gradle 9.8.2 (checked 2026-10-23) |
-| `*-jdk27-*`           | `27`         | 9.8.0 and later                                    |
-| `*-jdk28-ea18-*`      | `28-ea+18`   | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
-| `26.0.2.1-*` (legacy) | `26.0.2.1`   | 9.4.0 and later                                    |
-| `27-*` (legacy)       | `27`         | 9.8.0 and later                                    |
-| `28-ea18-*` (legacy)  | `28-ea+18`   | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
+| Image tags                  | JDK          | Gradle supported to run on it                      |
+|-----------------------------|--------------|----------------------------------------------------|
+| `*-jdk27.0.1.0.2-*`         | `27.0.1.0.2` | 9.8.0 and later                                    |
+| `*-jdk28-ea21-*`            | `28-ea+21`   | Not supported by Gradle 9.8.2 (checked 2026-10-23) |
+| `*-jdk27-*`                 | `27`         | 9.8.0 and later                                    |
+| `*-jdk28-ea18-*`            | `28-ea+18`   | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
+| `26.0.2.1-*` (legacy)       | `26.0.2.1`   | 9.4.0 and later                                    |
+| `27-debian-trixie` (legacy) | `27`         | 9.8.0 and later                                    |
+| `27-alpine-3.24` (legacy)   | `27`         | 9.8.0 and later                                    |
+| `28-ea18-*` (legacy)        | `28-ea+18`   | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
 
 With an older Gradle release, keep the daemon on a JDK it supports using
 [daemon JVM criteria](https://docs.gradle.org/current/userguide/gradle_daemon.html#sec:daemon_jvm_criteria),
@@ -280,9 +282,10 @@ leave `LC_ALL` unset. Consumers can override `LANG` and supply the selected
 locale's data. A consumer-supplied `LC_ALL` takes precedence over `LANG`.
 
 The UTF-8 default changes Java's default locale from `en-US` to territory-neutral
-`en`. It is present in every 27.0.1 image: `28-ea18-*` on both registries and
-`27-*` on GHCR only. Docker Hub's `27-*` still contain 27.0.0 images. Every image
-from release **27.0.2** onward has the new default. For example, default
+`en`. It is present in every 27.0.1 image: `28-ea18-*` on both registries, and
+`27-debian-trixie` and `27-alpine-3.24` on GHCR only (Docker Hub's copies of
+those two tags still contain 27.0.0 images). Every image from release **27.0.2**
+onward has the new default. For example, default
 currency formatting uses `¤` instead of `$`, and
 `Currency.getInstance(Locale.getDefault())` throws because the locale has no country.
 Applications should select a locale explicitly for regional formatting. To retain
@@ -305,7 +308,7 @@ ENTRYPOINT ["/opt/java/bin/java"]
 
 Images from release **27.0.0 and earlier** omit the locale from `/rootfs-libs`:
 on Docker Hub, this is every legacy tag except `28-ea18-*`; on GHCR, it is every
-legacy tag except `27-*` and `28-ea18-*`.
+legacy tag except `27-debian-trixie`, `27-alpine-3.24` and `28-ea18-*`.
 Merely setting `LANG` in a scratch image made from that older bundle is insufficient;
 update its pinned base image and rebuild. This does not repair data previously
 created using an incorrectly decoded password.
@@ -336,10 +339,10 @@ Publishing is automated by
 [`.github/workflows/publish.yml`](./.github/workflows/publish.yml). A build
 matrix builds **both** a GA release and the latest EA release for **both**
 runtime targets (`debian` and `alpine`) as multi-arch images and pushes them to
-GHCR and Docker Hub on version tag pushes (`X.Y.Z`). All JDK build args
-(`JAVA_RELEASE_TYPE`, `JAVA_VERSION`, `JAVA_BUILD`, `JAVA_VERSION_HASH`, and the
-per-architecture `JDK_SHA256_X64` / `JDK_SHA256_AARCH64` checksums) are defined
-explicitly per matrix entry.
+GHCR and, when configured, Docker Hub on version tag pushes (`X.Y.Z`). All JDK
+build args (`JAVA_RELEASE_TYPE`, `JAVA_VERSION`, `JAVA_BUILD`,
+`JAVA_VERSION_HASH`, and the per-architecture `JDK_SHA256_X64` /
+`JDK_SHA256_AARCH64` checksums) are defined explicitly per matrix entry.
 
 Pull requests and manual workflow runs execute the same validation matrix without
 registry login or publication. It checks both architectures of every GA/EA and
@@ -361,7 +364,8 @@ blocks validation. A PR or manual run for an already released version says it
 publishes nothing and skips this registry check; its runtime checks still run.
 Tag pushes list the references and defer the registry check to the publish job.
 
-For each entry, the publish job checks both registries again before any build:
+For each entry, the publish job checks every configured registry again before any
+build:
 
 | Registry state                          | First attempt  | Re-run (attempt > 1)                        |
 |-----------------------------------------|----------------|---------------------------------------------|

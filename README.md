@@ -27,39 +27,53 @@ with the same tag and digest:
 
 ## Contents
 
-The tag format is `<release>-jdk<jdk_tag>-<os_tag>`. The leading `X.Y.Z` is the
-sava-openjdk release version, `jdk<...>` identifies the OpenJDK version/build,
-and the final segment identifies the OS and its version. For example, release
-27.0.3 publishes:
+Each release publishes one image per entry of the build matrix in
+[`.github/workflows/publish.yml`](./.github/workflows/publish.yml): a GA and an EA
+JDK build, each for the `debian` and `alpine` targets. Tags have the form
+`<release>-jdk<jdk>-<os>`:
 
-| JDK channel | Variant  | Tag                                  |
-|-------------|----------|--------------------------------------|
-| GA          | `debian` | `27.0.3-jdk27.0.1.0.2-debian-trixie` |
-| GA          | `alpine` | `27.0.3-jdk27.0.1.0.2-alpine-3.24`   |
-| EA          | `debian` | `27.0.3-jdk28-ea21-debian-trixie`    |
-| EA          | `alpine` | `27.0.3-jdk28-ea21-alpine-3.24`      |
+| Segment    | Value                                        | Examples                       |
+|------------|----------------------------------------------|--------------------------------|
+| `release`  | The sava-openjdk release version, `X.Y.Z`    | `27.0.2`                       |
+| `jdk` (GA) | The full JDK version, with any update digits | `27`                           |
+| `jdk` (EA) | `<major>-ea<build>`                          | `28-ea18`                      |
+| `os`       | The base image's name and tag, joined by `-` | `debian-trixie`, `alpine-3.24` |
+
+For example, release 27.0.2 (2026-10-06) published:
+
+| JDK channel | Variant  | Tag                               |
+|-------------|----------|-----------------------------------|
+| GA          | `debian` | `27.0.2-jdk27-debian-trixie`      |
+| GA          | `alpine` | `27.0.2-jdk27-alpine-3.24`        |
+| EA          | `debian` | `27.0.2-jdk28-ea18-debian-trixie` |
+| EA          | `alpine` | `27.0.2-jdk28-ea18-alpine-3.24`   |
+
+Later releases can carry newer JDK builds and base images; the current tags are
+listed on
+[GHCR](https://github.com/sava-software/sava-openjdk/pkgs/container/sava-openjdk)
+and [Docker Hub](https://hub.docker.com/r/jpe7s/sava-openjdk/tags).
 
 These tags are never moved. There are no floating or `latest` tags.
 
-Common properties across the current images:
+Common properties of the release-versioned images:
 
-| Property       | Value                                              |
-|----------------|----------------------------------------------------|
-| Base           | `debian:trixie` / `alpine:3.24` (pinned by digest) |
-| OpenJDK source | jdk.java.net (GA `27.0.1.0.2`, EA `28-ea+21`)      |
-| `JAVA_HOME`    | `/opt/java`                                        |
-| Locale         | `LANG=C.UTF-8`                                     |
-| Architectures  | `linux/amd64`, `linux/arm64`                       |
+| Property       | Value                                                               |
+|----------------|---------------------------------------------------------------------|
+| Base           | Debian or Alpine, pinned by digest; the tag's `os` segment names it |
+| OpenJDK source | jdk.java.net; the tag's `jdk` segment names the build               |
+| `JAVA_HOME`    | `/opt/java`                                                         |
+| Locale         | `LANG=C.UTF-8`                                                      |
+| Architectures  | `linux/amd64`, `linux/arm64`                                        |
 
 ## Usage
 
-Pull a release-versioned tag from either registry:
+Pull a tag of the newest release (see [Contents](#contents)) from either registry:
 
 ```dockerfile
 # GitHub Container Registry
-FROM ghcr.io/sava-software/sava-openjdk:27.0.3-jdk27.0.1.0.2-debian-trixie
+FROM ghcr.io/sava-software/sava-openjdk:<tag>
 # ...or Docker Hub
-# FROM jpe7s/sava-openjdk:27.0.3-jdk27.0.1.0.2-debian-trixie
+# FROM jpe7s/sava-openjdk:<tag>
 # java, javac, jlink, ... are already on PATH and JAVA_HOME is set
 ```
 
@@ -67,18 +81,36 @@ For a digest pin, append `@sha256:<digest>` to the full `image:tag` reference,
 using the published index digest. The tag records the release; the digest pins
 the exact image.
 
-A release that rebuilds the same JDK changes only the leading release version,
-which Dependabot and Renovate can follow in a literal `FROM` line. A JDK update,
-new EA build or new major changes the `jdk<...>` segment and needs a manual edit.
+A release that rebuilds the same JDK on the same base image tags changes only
+the leading release version, which Dependabot and Renovate can follow in a literal
+`FROM` line. A JDK update, a new EA build or major, a new Alpine minor or a new
+Debian codename changes a later segment and needs a manual edit.
 
 ### Legacy tags
 
-Every tag from before 27.0.2 remains pullable and will never be updated. Docker
-Hub's `27-debian-trixie` and `27-alpine-3.24` still contain the 27.0.0 images,
-while the same tags on GHCR contain 27.0.1 images: the 27.0.1 GA images reached
-GHCR only. The `28-ea18-*` tags contain 27.0.1 images on both registries. Other
-legacy tags, including `27-ea24-*` and `27-ea34-*`, retain their older images.
-Do not assume that a legacy tag has the same digest on both registries.
+Every tag from before 27.0.2 remains pullable and will never be updated: those
+releases published tags without a release version, such as `27-debian-trixie`,
+and no release writes them any more. The table records the 14 legacy tags as
+both registries held them on 2026-10-23, from an anonymous read of their index
+digests and `org.opencontainers.image.revision` labels. Other sections refer to
+this table instead of repeating it.
+
+| Tags                                             | JDK        | Built by release                 | UTF-8 locale              | `alpine` C++ runtime | `alpine` `/lib/libc.so` |
+|--------------------------------------------------|------------|----------------------------------|---------------------------|----------------------|-------------------------|
+| `26.0.1-debian-trixie`, `26.0.1-alpine-3.23`     | `26.0.1`   | 0.1.2                            | No                        | No                   | Yes                     |
+| `27-ea24-debian-trixie`, `27-ea24-alpine-3.23`   | `27-ea+24` | 0.1.2                            | No                        | No                   | Yes                     |
+| `26.0.2.1-debian-trixie`, `26.0.2.1-alpine-3.24` | `26.0.2.1` | 0.1.3                            | No                        | No                   | Yes                     |
+| `27-ea34-debian-trixie`, `27-ea34-alpine-3.24`   | `27-ea+34` | 0.1.3                            | No                        | No                   | Yes                     |
+| `28-ea17-debian-trixie`, `28-ea17-alpine-3.24`   | `28-ea+17` | 27.0.0                           | No                        | Yes                  | No                      |
+| `27-debian-trixie`, `27-alpine-3.24`             | `27`       | Docker Hub: 27.0.0; GHCR: 27.0.1 | Docker Hub: no; GHCR: yes | Yes                  | No                      |
+| `28-ea18-debian-trixie`, `28-ea18-alpine-3.24`   | `28-ea+18` | 27.0.1                           | Yes                       | Yes                  | No                      |
+
+"UTF-8 locale" means that `LANG=C.UTF-8` is set and `/rootfs-libs` carries the
+`C.utf8` locale data. `27-debian-trixie` and `27-alpine-3.24` differ between the
+registries because Docker Hub's tag immutability refused the 27.0.1 release's GA
+images, which reached GHCR only, so do not assume that a legacy tag has the same
+digest on both registries. Gradle support follows the JDK major (see
+[Gradle compatibility](#gradle-compatibility)).
 
 ## Gradle compatibility
 
@@ -88,18 +120,18 @@ running on JDKs up to a certain version (see Gradle's
 On a newer JDK, Groovy DSL build scripts and build logic compiled for that JDK
 (such as Java `buildSrc` classes) fail with
 `Unsupported class file major version`, so use a Gradle release that supports
-running on the image's JDK:
+running on the image's JDK.
 
-| Image tags                  | JDK          | Gradle supported to run on it                      |
-|-----------------------------|--------------|----------------------------------------------------|
-| `*-jdk27.0.1.0.2-*`         | `27.0.1.0.2` | 9.8.0 and later                                    |
-| `*-jdk28-ea21-*`            | `28-ea+21`   | Not supported by Gradle 9.8.2 (checked 2026-10-23) |
-| `*-jdk27-*`                 | `27`         | 9.8.0 and later                                    |
-| `*-jdk28-ea18-*`            | `28-ea+18`   | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
-| `26.0.2.1-*` (legacy)       | `26.0.2.1`   | 9.4.0 and later                                    |
-| `27-debian-trixie` (legacy) | `27`         | 9.8.0 and later                                    |
-| `27-alpine-3.24` (legacy)   | `27`         | 9.8.0 and later                                    |
-| `28-ea18-*` (legacy)        | `28-ea+18`   | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
+Gradle's matrix, and so this table, is keyed by the JDK major: the first number
+after `jdk` in a tag, such as `27` in `27.0.2-jdk27-debian-trixie` and `28` in
+`27.0.2-jdk28-ea18-debian-trixie`, or the leading number of a
+[legacy tag](#legacy-tags).
+
+| JDK major | Gradle supported to run on it                                                                  |
+|-----------|------------------------------------------------------------------------------------------------|
+| 26        | 9.4.0 and later                                                                                |
+| 27        | 9.8.0 and later; not checked on the legacy EA tags `27-ea24-*` and `27-ea34-*`                 |
+| 28        | None as of 2026-10-23: Gradle 9.8.2 and the 9.10.0 nightly of that date fail on JDK `28-ea+21` |
 
 With an older Gradle release, keep the daemon on a JDK it supports using
 [daemon JVM criteria](https://docs.gradle.org/current/userguide/gradle_daemon.html#sec:daemon_jvm_criteria),
@@ -112,9 +144,9 @@ which Gradle 8.13 and later can download automatically:
    release can run on (for example `25` on Gradle 9.1 and later), and commit the
    generated `gradle/gradle-daemon-jvm.properties`.
 2. Builds in the image then download that JDK into `$GRADLE_USER_HOME/jdks` and
-   start the daemon on it. For Temurin 25 that is a ~140 MB download taking
-   ~440 MB on disk (Gradle keeps the archive next to the extracted JDK), so
-   cache the directory in CI.
+   start the daemon on it. For Temurin 25 that was a ~140 MB download taking
+   ~440 MB on disk when measured on 2026-09-15 (Gradle keeps the archive next to
+   the extracted JDK), so cache the directory in CI.
 3. Compilation also uses the daemon JDK unless you configure a
    [Java toolchain](https://docs.gradle.org/current/userguide/toolchains.html).
    Gradle 9.0 and later auto-detect the image's JDK from `JAVA_HOME`; on Gradle
@@ -125,14 +157,12 @@ The `alpine` images also ship the C++ runtime (`libstdc++.so.6`,
 `libgcc_s.so.1`, see `ROOTFS_CXX_LIBS` below) because Gradle's native
 integration needs it on arm64. Without it Gradle warns "There is no native
 integration with this operating environment", disables file system watching and
-cannot download a daemon JDK ("Service 'SystemInfo' is not available"). Alpine
-images published before this was added, such as `26.0.2.1-alpine-3.24` and
-`27-ea34-alpine-3.24`, do not include it.
+cannot download a daemon JDK ("Service 'SystemInfo' is not available"). Some
+legacy `alpine` tags do not include it (see [Legacy tags](#legacy-tags)).
 
-Those older Alpine images also carry a `/lib/libc.so` symlink to musl
-(`/lib/ld-musl-<arch>.so.1`); `27-alpine-3.24`, `28-ea17-alpine-3.24` and later
-Alpine images, including the release-versioned `*-jdk*-alpine-*` tags, do not.
-Gradle does not use it with the image's glibc JDK: its
+The release-versioned `alpine` images carry no `/lib/libc.so` symlink to musl
+(`/lib/ld-musl-<arch>.so.1`); some legacy `alpine` tags do (see
+[Legacy tags](#legacy-tags)). Gradle does not use it with the image's glibc JDK: its
 file-events library picks its musl build only when a file with `-musl-` in its
 name is already mapped into the JVM that starts file watching, which happens
 only if a derived image gets a musl-linked library loaded into that JVM. If
@@ -147,16 +177,17 @@ The images do not include `objcopy` (binutils), so `jlink --strip-debug` and
 `--strip-native-debug-symbols` fail with `Cannot run program "objcopy"`: on
 Linux `--strip-debug` strips native debug symbols as well as Java debug
 attributes, and the native part needs objcopy. The jdk.java.net builds ship
-their native libraries without debug sections (checked for JDK 27, 27.0.1.0.2,
-28-ea+17 and 28-ea+21 on both architectures), so that part would remove nothing:
+their native libraries without debug sections, so that part would remove nothing:
 `--strip-java-debug-attributes` gives a runtime image of the same size without
-objcopy. On JDK 27 (aarch64) a 9-module runtime shrinks from 49.1 MB to 45.5 MB
-either way, all of it in `lib/modules`.
+objcopy. This was checked on both architectures for JDK 27 and 28-ea+17 on
+2026-09-27 and for 27.0.1.0.2 and 28-ea+21 on 2026-10-23. On JDK 27 (aarch64) a
+9-module runtime shrinks from 49.1 MB to 45.5 MB either way, all of it in
+`lib/modules`.
 
 Both options drop line numbers from stack traces (`Unknown Source`) for every
 module linked into the image, your own included; leave both off to keep them.
 If you want `--strip-debug` anyway, install `binutils` in your own build stage;
-it adds about 33 MB on Debian and 19 MB on Alpine.
+it added about 33 MB on Debian and 19 MB on Alpine when measured on 2026-09-27.
 
 ## Building locally
 
@@ -217,21 +248,31 @@ other Dockerfiles (or run directly in CI). It resolves the GA/EA download URL,
 verifies the sha256 checksum and extracts the JDK into `JAVA_HOME`. Inputs are
 provided via environment variables:
 
-| Variable             | Purpose                                                                             |
-|----------------------|-------------------------------------------------------------------------------------|
-| `JAVA_VERSION`       | JDK version. GA: full (e.g. `27` or `27.0.1.0.2`). EA: major (e.g. `28`). Required. |
-| `JAVA_BUILD`         | Build number (e.g. `1` for GA, `21` for EA). Required.                              |
-| `JAVA_RELEASE_TYPE`  | `ga` or `ea`. Required.                                                             |
-| `JAVA_VERSION_HASH`  | GA only: the version hash in the download URL. Required for `ga`.                   |
-| `TARGETARCH`         | `amd64`/`arm64` or `x86_64`/`aarch64`. Required.                                    |
-| `JDK_SHA256_X64`     | Expected sha256 of the x64 download. Required (unless `JDK_SHA256` is set).         |
-| `JDK_SHA256_AARCH64` | Expected sha256 of the aarch64 download. Required (unless `JDK_SHA256` is set).     |
-| `JDK_SHA256`         | Optional checksum override taking precedence over the per-arch values.              |
-| `JAVA_HOME`          | Install directory. Required.                                                        |
+| Variable             | Purpose                                                                           |
+|----------------------|-----------------------------------------------------------------------------------|
+| `JAVA_VERSION`       | JDK version. GA: full (e.g. `27` or `26.0.2.1`). EA: major (e.g. `28`). Required. |
+| `JAVA_BUILD`         | Build number (e.g. `35` for GA, `18` for EA). Required.                           |
+| `JAVA_RELEASE_TYPE`  | `ga` or `ea`. Required.                                                           |
+| `JAVA_VERSION_HASH`  | GA only: the version hash in the download URL. Required for `ga`.                 |
+| `TARGETARCH`         | `amd64`/`arm64` or `x86_64`/`aarch64`. Required.                                  |
+| `JDK_SHA256_X64`     | Expected sha256 of the x64 download. Required (unless `JDK_SHA256` is set).       |
+| `JDK_SHA256_AARCH64` | Expected sha256 of the aarch64 download. Required (unless `JDK_SHA256` is set).   |
+| `JDK_SHA256`         | Optional checksum override taking precedence over the per-arch values.            |
+| `JAVA_HOME`          | Install directory. Required.                                                      |
 
-To reuse it in another Dockerfile:
+The examples show formats; the values CI builds are in the publish matrix.
+
+To reuse it in another Dockerfile, declare the JDK build args as the `jdk` stage of
+this repository's `Dockerfile` does and pass them with `--build-arg`:
 
 ```dockerfile
+ARG JAVA_RELEASE_TYPE
+ARG JAVA_VERSION
+ARG JAVA_BUILD
+ARG JAVA_VERSION_HASH
+ARG JDK_SHA256_X64
+ARG JDK_SHA256_AARCH64
+ARG JDK_SHA256
 # BuildKit populates TARGETARCH once it is declared; the script reads JAVA_HOME
 # as the install directory.
 ARG TARGETARCH
@@ -239,10 +280,6 @@ ENV JAVA_HOME=/opt/java
 COPY scripts/install-jdk.sh /usr/local/bin/install-jdk.sh
 RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates && \
     rm -rf /var/lib/apt/lists/* && \
-    JAVA_RELEASE_TYPE=ga JAVA_VERSION=27.0.1.0.2 JAVA_BUILD=1 \
-    JAVA_VERSION_HASH=924dbdccfc234bb9b9355d7c6b66034b \
-    JDK_SHA256_X64=e69ee3937022c1caa8eaa32a586955ba13c109ad6986a6a1a7f1d5e6fa8998e3 \
-    JDK_SHA256_AARCH64=8057b0bdc1742438c50b69f7a4544d10712e6585e4760f9846aca6bb70d35d72 \
     /usr/local/bin/install-jdk.sh
 ```
 
@@ -282,12 +319,10 @@ leave `LC_ALL` unset. Consumers can override `LANG` and supply the selected
 locale's data. A consumer-supplied `LC_ALL` takes precedence over `LANG`.
 
 The UTF-8 default changes Java's default locale from `en-US` to territory-neutral
-`en`. It is present in every 27.0.1 image: `28-ea18-*` on both registries, and
-`27-debian-trixie` and `27-alpine-3.24` on GHCR only (Docker Hub's copies of
-those two tags still contain 27.0.0 images). Every image from release **27.0.2**
-onward has the new default. For example, default
-currency formatting uses `¤` instead of `$`, and
-`Currency.getInstance(Locale.getDefault())` throws because the locale has no country.
+`en`. Every release-versioned image has it, and so do the legacy tags that
+[Legacy tags](#legacy-tags) marks. For example, default currency formatting uses
+`¤` instead of `$`, and `Currency.getInstance(Locale.getDefault())` throws
+because the locale has no country.
 Applications should select a locale explicitly for regional formatting. To retain
 the previous US Java defaults while keeping native UTF-8 decoding, launch Java with
 `-Duser.language=en -Duser.country=US`.
@@ -306,12 +341,11 @@ ENV LANG=C.UTF-8
 ENTRYPOINT ["/opt/java/bin/java"]
 ```
 
-Images from release **27.0.0 and earlier** omit the locale from `/rootfs-libs`:
-on Docker Hub, this is every legacy tag except `28-ea18-*`; on GHCR, it is every
-legacy tag except `27-debian-trixie`, `27-alpine-3.24` and `28-ea18-*`.
-Merely setting `LANG` in a scratch image made from that older bundle is insufficient;
-update its pinned base image and rebuild. This does not repair data previously
-created using an incorrectly decoded password.
+Legacy tags without the UTF-8 locale (see [Legacy tags](#legacy-tags)) omit the
+`C.utf8` data from `/rootfs-libs`. Merely setting `LANG` in a scratch image made
+from that older bundle is insufficient; update its pinned base image and rebuild.
+This does not repair data previously created using an incorrectly decoded
+password.
 
 ### UTF-8 regression checks
 
@@ -337,8 +371,8 @@ the run; the supplied base image is retained.
 
 Publishing is automated by
 [`.github/workflows/publish.yml`](./.github/workflows/publish.yml). A build
-matrix builds **both** a GA release and the latest EA release for **both**
-runtime targets (`debian` and `alpine`) as multi-arch images and pushes them to
+matrix builds **both** a GA and an EA JDK build for **both** runtime targets
+(`debian` and `alpine`) as multi-arch images and pushes them to
 GHCR and, when configured, Docker Hub on version tag pushes (`X.Y.Z`). All JDK
 build args (`JAVA_RELEASE_TYPE`, `JAVA_VERSION`, `JAVA_BUILD`,
 `JAVA_VERSION_HASH`, and the per-architecture `JDK_SHA256_X64` /
@@ -367,24 +401,27 @@ Tag pushes list the references and defer the registry check to the publish job.
 For each entry, the publish job checks every configured registry again before any
 build:
 
-| Registry state                          | First attempt  | Re-run (attempt > 1)                        |
-|-----------------------------------------|----------------|---------------------------------------------|
-| Absent everywhere                       | Build and push | Build and push                              |
-| Present everywhere with the same digest | Fail           | Skip the build and push                     |
-| Docker Hub only                         | Fail           | Copy that digest to GHCR without rebuilding |
-| GHCR only, or differing digests         | Fail           | Fail; maintainer intervention required      |
-| Registry cannot be read                 | Fail           | Fail                                        |
+| Registry state                                                 | First attempt  | Re-run (attempt > 1)                        |
+|----------------------------------------------------------------|----------------|---------------------------------------------|
+| Absent from every configured registry                          | Build and push | Build and push                              |
+| Present on every configured registry with the same digest      | Fail           | Skip the build and push                     |
+| Docker Hub only                                                | Fail           | Copy that digest to GHCR without rebuilding |
+| GHCR only while Docker Hub is configured, or differing digests | Fail           | Fail; maintainer intervention required      |
+| Registry cannot be read                                        | Fail           | Fail                                        |
 
-Docker Hub is listed before GHCR for a new push, but recovery does not depend on
-push order. After a build or copy attempt, even a failed one, the workflow waits
-briefly for visibility and requires every configured registry to report the
-expected digest. A re-run never rebuilds an entry already present on Docker Hub
-and never automatically copies towards Docker Hub or overwrites a GHCR tag.
-Entries are independent, so a failure in one does not undo the others.
+Without Docker Hub, GHCR is the only configured registry, so a tag present on
+GHCR counts as published. When Docker Hub is configured, it is listed before GHCR
+for a new push, but recovery does not depend on push order. After a build or
+copy attempt, even a failed one, the workflow waits briefly for visibility and
+requires every configured registry to report the expected digest. A re-run never
+rebuilds an entry already present on Docker Hub and never automatically copies
+towards Docker Hub or overwrites a GHCR tag. Entries are independent, so a
+failure in one does not undo the others.
 
-Use **Re-run failed jobs** to finish a partially published entry. For a GHCR-only
-tag, a maintainer must first read `org.opencontainers.image.revision` on that
-image. Only if it matches the release commit may the maintainer copy the image.
+Use **Re-run failed jobs** to finish a partially published entry. For a tag that
+is on GHCR but missing from a configured Docker Hub, a maintainer must first read
+`org.opencontainers.image.revision` on that image. Only if it matches the release
+commit may the maintainer copy the image.
 Before copying, authenticate to Docker Hub with push rights to the destination
 repository (`docker login docker.io`). Copy by digest with
 `docker buildx imagetools create --tag
@@ -398,9 +435,12 @@ tag from a registry error, and records each registry's status and digest in the
 log and step summary. Run its local stub tests with
 `python3 .github/scripts/test-image-state.py`.
 
-Update the `java_version`/`java_build`/`java_version_hash` (GA only)/`jdk_tag`
-and the `jdk_sha256_x64`/`jdk_sha256_aarch64` values in the workflow matrix when
-bumping the GA or EA release.
+When bumping the GA or EA build, update the
+`java_version`/`java_build`/`java_version_hash` (GA only)/`jdk_tag` and the
+`jdk_sha256_x64`/`jdk_sha256_aarch64` values in the workflow matrix, and the
+literal values under [Building locally](#building-locally). When a `FROM` tag in
+the `Dockerfile` changes, such as `alpine:3.25`, update the matching `os_tag`
+values too.
 
 Releases (the `X.Y.Z` tags) are numbered after the JDK line of the GA images:
 the major version is the GA JDK major, so `27.0.0` and its successors publish

@@ -7,9 +7,9 @@
 #
 # Inputs are provided via environment variables. All are required (no defaults
 # are baked in here); callers (Dockerfiles, CI) must supply them explicitly:
-#   JAVA_VERSION       JDK version. GA: full version (e.g. "27" or "27.0.1.0.2").
+#   JAVA_VERSION       JDK version. GA: full version (e.g. "27" or "26.0.2.1").
 #                      EA: major version (e.g. "28").
-#   JAVA_BUILD         Build number (e.g. "1" for GA, "21" for EA).
+#   JAVA_BUILD         Build number (e.g. "35" for GA, "18" for EA).
 #   JAVA_RELEASE_TYPE  "ga" or "ea".
 #   JAVA_VERSION_HASH  GA only: the version hash in the download URL.
 #   TARGETARCH         Docker target arch ("amd64"/"arm64") or "uname -m"
@@ -22,8 +22,8 @@
 #                      per-architecture JDK_SHA256_X64/JDK_SHA256_AARCH64 values.
 #   JAVA_HOME          Install directory.
 #
-# Example EA download URL:
-#   https://download.java.net/java/early_access/jdk28/21/GPL/openjdk-28-ea+21_linux-aarch64_bin.tar.gz
+# The examples show formats; the values CI builds live in the publish matrix
+# (.github/workflows/publish.yml). The JDK_URL lines below give both URL layouts.
 
 set -eu
 
@@ -48,7 +48,7 @@ if [ -z "${JDK_SHA256}" ]; then
   esac
 fi
 
-# https://jdk.java.net/27/
+# GA and EA builds are listed on https://jdk.java.net/.
 if [ "${JAVA_RELEASE_TYPE}" = "ea" ]; then
   JDK_URL="https://download.java.net/java/early_access/jdk${JAVA_VERSION}/${JAVA_BUILD}/GPL/openjdk-${JAVA_VERSION}-ea+${JAVA_BUILD}_linux-${JDK_ARCH}_bin.tar.gz"
 elif [ "${JAVA_RELEASE_TYPE}" = "ga" ]; then

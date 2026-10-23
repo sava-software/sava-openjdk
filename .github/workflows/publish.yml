@@ -4,8 +4,19 @@ on:
   pull_request:
   workflow_dispatch:
   push:
+    # Release tags always run (path filters are not evaluated for tag pushes);
+    # pushes to main run the validation only when they change a build input.
+    branches:
+      - main
     tags:
       - '[0-9]*.[0-9]*.[0-9]*'
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - 'scripts/**'
+      - 'tests/**'
+      - .github/workflows/publish.yml
+      - '.github/scripts/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
@@ -28,45 +39,40 @@ jobs:
       fail-fast: false
       matrix: &jdk-matrix
         include:
-          # GA (General Availability) builds.
+          # Each JDK value is typed once, on the channel's debian entry, and the
+          # alpine entry aliases it. The image tags' jdk and os segments are derived
+          # in "Resolve release image references", never typed here.
+          # GA (General Availability) build, as listed on https://jdk.java.net/.
           - target: debian
             release_type: ga
-            java_version: "27.0.1.0.2"
-            java_build: "1"
-            java_version_hash: "924dbdccfc234bb9b9355d7c6b66034b"
-            jdk_sha256_x64: "e69ee3937022c1caa8eaa32a586955ba13c109ad6986a6a1a7f1d5e6fa8998e3"
-            jdk_sha256_aarch64: "8057b0bdc1742438c50b69f7a4544d10712e6585e4760f9846aca6bb70d35d72"
-            jdk_tag: "27.0.1.0.2"
-            os_tag: "debian-trixie"
+            java_version: &ga-java-version "27.0.1.0.2"
+            java_version_hash: &ga-java-version-hash "924dbdccfc234bb9b9355d7c6b66034b"
+            java_build: &ga-java-build "1"
+            jdk_sha256_x64: &ga-jdk-sha256-x64 "e69ee3937022c1caa8eaa32a586955ba13c109ad6986a6a1a7f1d5e6fa8998e3"
+            jdk_sha256_aarch64: &ga-jdk-sha256-aarch64 "8057b0bdc1742438c50b69f7a4544d10712e6585e4760f9846aca6bb70d35d72"
           - target: alpine
             release_type: ga
-            java_version: "27.0.1.0.2"
-            java_build: "1"
-            java_version_hash: "924dbdccfc234bb9b9355d7c6b66034b"
-            jdk_sha256_x64: "e69ee3937022c1caa8eaa32a586955ba13c109ad6986a6a1a7f1d5e6fa8998e3"
-            jdk_sha256_aarch64: "8057b0bdc1742438c50b69f7a4544d10712e6585e4760f9846aca6bb70d35d72"
-            jdk_tag: "27.0.1.0.2"
-            os_tag: "alpine-3.24"
-          # EA (Early Access) builds. 28 build 21 is the latest build published on the
-          # early-access download path (https://jdk.java.net/28/).
+            java_version: *ga-java-version
+            java_version_hash: *ga-java-version-hash
+            java_build: *ga-java-build
+            jdk_sha256_x64: *ga-jdk-sha256-x64
+            jdk_sha256_aarch64: *ga-jdk-sha256-aarch64
+          # EA (Early Access) build from the early-access download path; the bump
+          # commit records which build was the newest and when it was checked.
           - target: debian
             release_type: ea
-            java_version: "28"
-            java_build: "21"
+            java_version: &ea-java-version "28"
             java_version_hash: ""
-            jdk_sha256_x64: "b32bf773d02fff73d4a2da78cf590459879963b3dbffd18dcc9d6c6756ee4549"
-            jdk_sha256_aarch64: "3908eb08a5a6a074301fffbed99ef8f2a36d0ae42dce41e7c948a3b16a8cfa5a"
-            jdk_tag: "28-ea21"
-            os_tag: "debian-trixie"
+            java_build: &ea-java-build "21"
+            jdk_sha256_x64: &ea-jdk-sha256-x64 "b32bf773d02fff73d4a2da78cf590459879963b3dbffd18dcc9d6c6756ee4549"
+            jdk_sha256_aarch64: &ea-jdk-sha256-aarch64 "3908eb08a5a6a074301fffbed99ef8f2a36d0ae42dce41e7c948a3b16a8cfa5a"
           - target: alpine
             release_type: ea
-            java_version: "28"
-            java_build: "21"
+            java_version: *ea-java-version
             java_version_hash: ""
-            jdk_sha256_x64: "b32bf773d02fff73d4a2da78cf590459879963b3dbffd18dcc9d6c6756ee4549"
-            jdk_sha256_aarch64: "3908eb08a5a6a074301fffbed99ef8f2a36d0ae42dce41e7c948a3b16a8cfa5a"
-            jdk_tag: "28-ea21"
-            os_tag: "alpine-3.24"
+            java_build: *ea-java-build
+            jdk_sha256_x64: *ea-jdk-sha256-x64
+            jdk_sha256_aarch64: *ea-jdk-sha256-aarch64
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -75,8 +81,10 @@ jobs:
         name: Resolve release image references
         id: dockerhub
         env:
-          JDK_TAG: ${{ matrix.jdk_tag }}
-          OS_TAG: ${{ matrix.os_tag }}
+          TARGET: ${{ matrix.target }}
+          RELEASE_TYPE: ${{ matrix.release_type }}
+          JAVA_VERSION: ${{ matrix.java_version }}
+          JAVA_BUILD: ${{ matrix.java_build }}
           EVENT_NAME: ${{ github.event_name }}
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
@@ -89,11 +97,31 @@ jobs:
             echo '::error::The release manifest version does not match the pushed Git tag.'
             exit 1
           fi
-          tag="${version}-jdk${JDK_TAG}-${OS_TAG}"
+          # Derive the tag's jdk segment from the entry and its os segment from the
+          # target stage's FROM line, so neither can disagree with what is built.
+          case "$RELEASE_TYPE" in
+            ga) jdk_tag="$JAVA_VERSION" ;;
+            ea) jdk_tag="${JAVA_VERSION}-ea${JAVA_BUILD}" ;;
+            *)
+              echo '::error::The matrix release_type must be ga or ea.'
+              exit 1
+              ;;
+          esac
+          if ! base=$(awk -v stage="$TARGET" '$1 == "FROM" && NF == 4 && $3 == "AS" && $4 == stage { print $2; n++ } END { if (n != 1) exit 1 }' Dockerfile); then
+            echo '::error::The Dockerfile needs exactly one "FROM name:tag@sha256:digest AS target" line for this target.'
+            exit 1
+          fi
+          if [[ ! "$base" =~ ^([a-z0-9]+):([a-z0-9][a-z0-9._-]*)@sha256:[a-f0-9]{64}$ ]]; then
+            echo '::error::The target stage must start from an official image pinned as name:tag@sha256:digest.'
+            exit 1
+          fi
+          os_tag="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
+          tag="${version}-jdk${jdk_tag}-${os_tag}"
           if [[ ! "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]]; then
             echo '::error::The rendered image tag is invalid; refusing metadata-action tag rewriting.'
             exit 1
           fi
+          echo "Image tag: ${tag}"
           # Only load the resolver; the script's subshell entry point does not run.
           # shellcheck source=/dev/null
           source .github/scripts/image-state.sh
@@ -276,7 +304,7 @@ jobs:
         run: |
           docker buildx imagetools create --tag "${GHCR_IMAGE}:${IMAGE_TAG}" "${DOCKERHUB_IMAGE}@${SOURCE_DIGEST}"
 
-      - name: Build and push (${{ matrix.release_type }} ${{ matrix.jdk_tag }} ${{ matrix.os_tag }})
+      - name: Build and push (${{ matrix.release_type }} ${{ matrix.target }})
         id: build
         if: steps.publication.outputs.action == 'build'
         uses: sava-software/sava-build/.github/actions/docker-build-image@main

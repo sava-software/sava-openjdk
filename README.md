@@ -191,20 +191,24 @@ it added about 33 MB on Debian and 19 MB on Alpine when measured on 2026-09-27.
 
 ## Building locally
 
-Every JDK build arg is required (the `Dockerfile` declares them without
-defaults); the values below are the GA entry of the CI publish matrix. The
-sha256 checksum is supplied per architecture so the download is verified:
-`install-jdk.sh` selects the one matching the build's `TARGETARCH`, and you may
-pass a single `JDK_SHA256` to override both.
+Supply the JDK build args with `--build-arg`: the `Dockerfile` declares the
+version args without defaults (`JAVA_VERSION_HASH` is only used for GA), and
+`install-jdk.sh` refuses to run without a checksum for the build's architecture.
+Take the values from the GA or EA channel's `debian` entry in the
+[publish matrix](./.github/workflows/publish.yml), where each value is typed
+once. The sha256 checksum is supplied per architecture so the download is
+verified: `install-jdk.sh` selects the one matching the build's `TARGETARCH`, and
+you may pass a single `JDK_SHA256` to override both.
 
 ```bash
+# Replace each <key> with that value of the matrix's GA debian entry.
 JDK_ARGS=(
   --build-arg JAVA_RELEASE_TYPE=ga
-  --build-arg JAVA_VERSION=27.0.1.0.2
-  --build-arg JAVA_BUILD=1
-  --build-arg JAVA_VERSION_HASH=924dbdccfc234bb9b9355d7c6b66034b
-  --build-arg JDK_SHA256_X64=e69ee3937022c1caa8eaa32a586955ba13c109ad6986a6a1a7f1d5e6fa8998e3
-  --build-arg JDK_SHA256_AARCH64=8057b0bdc1742438c50b69f7a4544d10712e6585e4760f9846aca6bb70d35d72
+  --build-arg JAVA_VERSION=<java_version>
+  --build-arg JAVA_BUILD=<java_build>
+  --build-arg JAVA_VERSION_HASH=<java_version_hash>
+  --build-arg JDK_SHA256_X64=<jdk_sha256_x64>
+  --build-arg JDK_SHA256_AARCH64=<jdk_sha256_aarch64>
 )
 
 # debian runtime, single architecture (host)
@@ -222,23 +226,24 @@ If `--target` is omitted, the last stage in the `Dockerfile` (`alpine`) is built
 ### Early Access (EA) builds
 
 The examples above build a **GA** release. To build against an **Early
-Access** release instead, set `JAVA_RELEASE_TYPE=ea` and supply the matching
-`JAVA_VERSION` (major), `JAVA_BUILD` and the per-architecture sha256 checksums
-(`JAVA_VERSION_HASH` is only used for GA downloads):
+Access** release instead, set `JAVA_RELEASE_TYPE=ea` and take `JAVA_VERSION` (the
+JDK major), `JAVA_BUILD` and the per-architecture sha256 checksums from the EA
+channel's `debian` entry (`JAVA_VERSION_HASH` is only used for GA downloads):
 
 ```bash
+# Replace each <key> with that value of the matrix's EA debian entry.
 docker build \
   --build-arg JAVA_RELEASE_TYPE=ea \
-  --build-arg JAVA_VERSION=28 \
-  --build-arg JAVA_BUILD=21 \
-  --build-arg JDK_SHA256_X64=b32bf773d02fff73d4a2da78cf590459879963b3dbffd18dcc9d6c6756ee4549 \
-  --build-arg JDK_SHA256_AARCH64=3908eb08a5a6a074301fffbed99ef8f2a36d0ae42dce41e7c948a3b16a8cfa5a \
+  --build-arg JAVA_VERSION=<java_version> \
+  --build-arg JAVA_BUILD=<java_build> \
+  --build-arg JDK_SHA256_X64=<jdk_sha256_x64> \
+  --build-arg JDK_SHA256_AARCH64=<jdk_sha256_aarch64> \
   --target debian \
   -t sava-openjdk:local .
 ```
 
-This corresponds to download URLs such as
-`https://download.java.net/java/early_access/jdk28/21/GPL/openjdk-28-ea+21_linux-aarch64_bin.tar.gz`.
+The `JDK_URL` lines of [`scripts/install-jdk.sh`](./scripts/install-jdk.sh) show
+the download URL layout of both channels.
 
 ### Reusable installation script
 
@@ -376,27 +381,43 @@ matrix builds **both** a GA and an EA JDK build for **both** runtime targets
 GHCR and, when configured, Docker Hub on version tag pushes (`X.Y.Z`). All JDK
 build args (`JAVA_RELEASE_TYPE`, `JAVA_VERSION`, `JAVA_BUILD`,
 `JAVA_VERSION_HASH`, and the per-architecture `JDK_SHA256_X64` /
-`JDK_SHA256_AARCH64` checksums) are defined explicitly per matrix entry.
+`JDK_SHA256_AARCH64` checksums) come from the matrix, where each JDK value is
+typed once on a channel's `debian` entry and aliased by its `alpine` entry.
 
-Pull requests and manual workflow runs execute the same validation matrix without
-registry login or publication. It checks both architectures of every GA/EA and
-Debian/Alpine image, including each exported scratch runtime. The 600-second timeout
+Pull requests, manual workflow runs and pushes to `main` that change a build input
+(the `Dockerfile`, `.dockerignore`, `scripts/`, `tests/`, the publish workflow or
+`.github/scripts/`) execute the same validation matrix without registry login or
+publication. It checks both architectures of every GA/EA and Debian/Alpine
+image, including each exported scratch runtime. The 600-second timeout
 applies to Docker operations run inside `scripts/test-utf8.py`; it does not bound the
 workflow's preceding Buildx build of each validation image. Each validation job has
-a 30-minute overall limit. Tag publication waits for every validation entry to pass.
-Use a pull request or manual run to exercise the gate in Actions before releasing.
+a 30-minute overall limit. Tag publication waits for every validation entry to pass,
+but a failure at that point spends the release version. Before merging a release
+pull request, check that its own validation run passed; that run also checks the
+new version's tags, as derived from the inputs it built, against every configured
+registry. A later change to a build input on `main` gets its own validation run;
+check that it passed too. That run repeats the builds and tests with the new
+inputs but not the registry check, which the publish job makes again before
+pushing. If the newest of these runs is old enough that a JDK download may have
+moved, run the workflow manually on `main` first.
 
 The version comes from the `"."` entry of `.release-please-manifest.json` and must
-be `X.Y.Z`; on a tag push it must equal the Git tag. Each matrix entry renders
-`<version>-jdk<jdk_tag>-<os_tag>` once for use in checks and publication. Invalid
-tags fail before metadata-action can rewrite them.
+be `X.Y.Z`; on a tag push it must equal the Git tag. Each matrix entry renders its
+tag, `<version>-jdk<jdk>-<os>`, once for use in checks and publication, and logs it
+as `Image tag:`. `jdk` is the entry's `java_version` for GA and
+`<java_version>-ea<java_build>` for EA. `os` is the image name and tag from the
+target stage's `FROM <name>:<tag>@sha256:<digest> AS <target>` line, so a base
+image update that changes the tag, such as `alpine:3.25`, also changes the image
+tags. A `FROM` line in another form, or an invalid tag, fails before
+metadata-action can rewrite it.
 
 Before the QEMU/Buildx setup, an unreleased version (including a release PR's
 merge ref) lists its full image references and anonymously checks that every
 configured registry lacks those tags. A collision or an unreadable registry
-blocks validation. A PR or manual run for an already released version says it
-publishes nothing and skips this registry check; its runtime checks still run.
-Tag pushes list the references and defer the registry check to the publish job.
+blocks validation. A PR, manual run or push to `main` for an already released
+version says it publishes nothing and skips this registry check; its runtime
+checks still run. Tag pushes list the references and defer the registry check to
+the publish job.
 
 For each entry, the publish job checks every configured registry again before any
 build:
@@ -435,13 +456,6 @@ tag from a registry error, and records each registry's status and digest in the
 log and step summary. Run its local stub tests with
 `python3 .github/scripts/test-image-state.py`.
 
-When bumping the GA or EA build, update the
-`java_version`/`java_build`/`java_version_hash` (GA only)/`jdk_tag` and the
-`jdk_sha256_x64`/`jdk_sha256_aarch64` values in the workflow matrix, and the
-literal values under [Building locally](#building-locally). When a `FROM` tag in
-the `Dockerfile` changes, such as `alpine:3.25`, update the matching `os_tag`
-values too.
-
 Releases (the `X.Y.Z` tags) are numbered after the JDK line of the GA images:
 the major version is the GA JDK major, so `27.0.0` and its successors publish
 JDK 27 GA images. release-please (`always-bump-patch`) only bumps the patch, so
@@ -454,6 +468,36 @@ The publishing job consumes the shared composite actions from
 for `metadata-action` + `build-push-action`), referenced here as `…@main`.
 The validation job uses pinned QEMU and Buildx actions directly because it needs
 no registry login.
+
+### Bumping the JDK or base images
+
+1. Pick the builds: the GA build that [jdk.java.net](https://jdk.java.net/) lists
+   for the GA major, and the newest build on the early-access download path.
+   Verify each tarball against its `.sha256` file and check its native libraries
+   for `.debug_*` sections. Record both checks in the commit body, with the date
+   and with how you established that the EA build was the newest.
+2. Edit the anchored values of the GA or EA channel's `debian` entry in the
+   matrix: `java_version`, `java_version_hash` (GA only), `java_build`,
+   `jdk_sha256_x64` and `jdk_sha256_aarch64`. The `alpine` entries alias them,
+   and the workflow derives the tags' `jdk` and `os` segments.
+3. To refresh the base images, update the three `FROM` digests in the
+   `Dockerfile` (both Debian stages use the same one), resolving each digest from
+   the tag on its line, or merge Dependabot's update if its digest is still
+   current. A `FROM` tag change, such as `alpine:3.25`, changes the image tags'
+   `os` segment with no other edit.
+4. Build both targets as in [Building locally](#building-locally), run
+   `scripts/test-utf8.py` on both architectures, and check the new JDK with
+   Gradle.
+5. Edit this README only when a JDK major without a row enters the matrix (add a
+   [Gradle](#gradle-compatibility) row), when Gradle support for a listed major
+   changes (update its row and date), or when a build ships debug sections
+   (revise [jlink](#jlink)). Examples in this README and in script comments show
+   formats and are not updated.
+6. A commit that moves the GA entries to a new JDK major ends with a
+   `Release-As` footer, as described above.
+
+The push to `main` runs the validation matrix. Before merging the release pull
+request, check its validation as described under [Publishing](#publishing).
 
 ### Required repository configuration
 

@@ -5,7 +5,7 @@
 # the required JDK build args (see "Building locally" in README.md for the
 # JDK_ARGS array):
 #
-#   docker build --target debian "${JDK_ARGS[@]}" -t sava-openjdk:debian .   # debian:trixie runtime
+#   docker build --target debian "${JDK_ARGS[@]}" -t sava-openjdk:debian .   # debian runtime
 #   docker build --target alpine "${JDK_ARGS[@]}" -t sava-openjdk:alpine .   # alpine + jlink runtime
 #
 # Without `--target`, the last stage (alpine) is built. The shared `jdk` stage
@@ -18,9 +18,10 @@
 # https://www.debian.org/releases/
 FROM debian:trixie@sha256:4c25275446ca371766b8b093c696782eabce06263fccacb8d5d813b3dc44b308 AS jdk
 
-# Build args are intentionally declared without defaults; the values for the
-# currently published builds live in the CI publish matrix
-# (.github/workflows/publish.yml). Supply each of them with --build-arg.
+# The JDK version args are intentionally declared without defaults and the
+# checksums default to empty, so supply each of them with --build-arg. The values
+# CI validates and publishes live in the publish matrix
+# (.github/workflows/publish.yml).
 ARG JAVA_VERSION
 ARG JAVA_BUILD
 # Release channel: "ga" (General Availability) or "ea" (Early Access).

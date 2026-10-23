@@ -30,14 +30,14 @@ with the same tag and digest:
 The tag format is `<release>-jdk<jdk_tag>-<os_tag>`. The leading `X.Y.Z` is the
 sava-openjdk release version, `jdk<...>` identifies the OpenJDK version/build,
 and the final segment identifies the OS and its version. For example, release
-27.0.2 publishes:
+27.0.3 publishes:
 
-| JDK channel | Variant  | Tag                               |
-|-------------|----------|-----------------------------------|
-| GA          | `debian` | `27.0.2-jdk27-debian-trixie`      |
-| GA          | `alpine` | `27.0.2-jdk27-alpine-3.24`        |
-| EA          | `debian` | `27.0.2-jdk28-ea18-debian-trixie` |
-| EA          | `alpine` | `27.0.2-jdk28-ea18-alpine-3.24`   |
+| JDK channel | Variant  | Tag                                  |
+|-------------|----------|--------------------------------------|
+| GA          | `debian` | `27.0.3-jdk27.0.1.0.2-debian-trixie` |
+| GA          | `alpine` | `27.0.3-jdk27.0.1.0.2-alpine-3.24`   |
+| EA          | `debian` | `27.0.3-jdk28-ea21-debian-trixie`    |
+| EA          | `alpine` | `27.0.3-jdk28-ea21-alpine-3.24`      |
 
 These tags are never moved. There are no floating or `latest` tags.
 
@@ -46,7 +46,7 @@ Common properties across the current images:
 | Property       | Value                                              |
 |----------------|----------------------------------------------------|
 | Base           | `debian:trixie` / `alpine:3.24` (pinned by digest) |
-| OpenJDK source | jdk.java.net (GA `27`, EA `28-ea+18`)              |
+| OpenJDK source | jdk.java.net (GA `27.0.1.0.2`, EA `28-ea+21`)      |
 | `JAVA_HOME`    | `/opt/java`                                        |
 | Locale         | `LANG=C.UTF-8`                                     |
 | Architectures  | `linux/amd64`, `linux/arm64`                       |
@@ -57,9 +57,9 @@ Pull a release-versioned tag from either registry:
 
 ```dockerfile
 # GitHub Container Registry
-FROM ghcr.io/sava-software/sava-openjdk:27.0.2-jdk27-debian-trixie
+FROM ghcr.io/sava-software/sava-openjdk:27.0.3-jdk27.0.1.0.2-debian-trixie
 # ...or Docker Hub
-# FROM jpe7s/sava-openjdk:27.0.2-jdk27-debian-trixie
+# FROM jpe7s/sava-openjdk:27.0.3-jdk27.0.1.0.2-debian-trixie
 # java, javac, jlink, ... are already on PATH and JAVA_HOME is set
 ```
 
@@ -89,13 +89,15 @@ On a newer JDK, Groovy DSL build scripts and build logic compiled for that JDK
 `Unsupported class file major version`, so use a Gradle release that supports
 running on the image's JDK:
 
-| Image tags            | JDK        | Gradle supported to run on it                      |
-|-----------------------|------------|----------------------------------------------------|
-| `*-jdk27-*`           | `27`       | 9.8.0 and later                                    |
-| `*-jdk28-ea18-*`      | `28-ea+18` | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
-| `26.0.2.1-*` (legacy) | `26.0.2.1` | 9.4.0 and later                                    |
-| `27-*` (legacy)       | `27`       | 9.8.0 and later                                    |
-| `28-ea18-*` (legacy)  | `28-ea+18` | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
+| Image tags            | JDK          | Gradle supported to run on it                      |
+|-----------------------|--------------|----------------------------------------------------|
+| `*-jdk27.0.1.0.2-*`   | `27.0.1.0.2` | 9.8.0 and later                                    |
+| `*-jdk28-ea21-*`      | `28-ea+21`   | Not supported by Gradle 9.8.2 (checked 2026-10-23) |
+| `*-jdk27-*`           | `27`         | 9.8.0 and later                                    |
+| `*-jdk28-ea18-*`      | `28-ea+18`   | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
+| `26.0.2.1-*` (legacy) | `26.0.2.1`   | 9.4.0 and later                                    |
+| `27-*` (legacy)       | `27`         | 9.8.0 and later                                    |
+| `28-ea18-*` (legacy)  | `28-ea+18`   | Not supported by Gradle 9.8.0 (checked 2026-10-06) |
 
 With an older Gradle release, keep the daemon on a JDK it supports using
 [daemon JVM criteria](https://docs.gradle.org/current/userguide/gradle_daemon.html#sec:daemon_jvm_criteria),
@@ -143,8 +145,8 @@ The images do not include `objcopy` (binutils), so `jlink --strip-debug` and
 `--strip-native-debug-symbols` fail with `Cannot run program "objcopy"`: on
 Linux `--strip-debug` strips native debug symbols as well as Java debug
 attributes, and the native part needs objcopy. The jdk.java.net builds ship
-their native libraries without debug sections (checked for JDK 27 and 28-ea+17
-on both architectures), so that part would remove nothing:
+their native libraries without debug sections (checked for JDK 27, 27.0.1.0.2,
+28-ea+17 and 28-ea+21 on both architectures), so that part would remove nothing:
 `--strip-java-debug-attributes` gives a runtime image of the same size without
 objcopy. On JDK 27 (aarch64) a 9-module runtime shrinks from 49.1 MB to 45.5 MB
 either way, all of it in `lib/modules`.
@@ -165,11 +167,11 @@ pass a single `JDK_SHA256` to override both.
 ```bash
 JDK_ARGS=(
   --build-arg JAVA_RELEASE_TYPE=ga
-  --build-arg JAVA_VERSION=27
-  --build-arg JAVA_BUILD=35
-  --build-arg JAVA_VERSION_HASH=55ce5470a6294008af0057ff4626d0e5
-  --build-arg JDK_SHA256_X64=95fc37eb3a18a27a26d5904c2d89d52bace8dafa9a078ca27f4747fbc4bf070b
-  --build-arg JDK_SHA256_AARCH64=da4e9dde1fff90204739e969187bab4751bd59a2a1c479672e1a1810f7dd23ea
+  --build-arg JAVA_VERSION=27.0.1.0.2
+  --build-arg JAVA_BUILD=1
+  --build-arg JAVA_VERSION_HASH=924dbdccfc234bb9b9355d7c6b66034b
+  --build-arg JDK_SHA256_X64=e69ee3937022c1caa8eaa32a586955ba13c109ad6986a6a1a7f1d5e6fa8998e3
+  --build-arg JDK_SHA256_AARCH64=8057b0bdc1742438c50b69f7a4544d10712e6585e4760f9846aca6bb70d35d72
 )
 
 # debian runtime, single architecture (host)
@@ -195,15 +197,15 @@ Access** release instead, set `JAVA_RELEASE_TYPE=ea` and supply the matching
 docker build \
   --build-arg JAVA_RELEASE_TYPE=ea \
   --build-arg JAVA_VERSION=28 \
-  --build-arg JAVA_BUILD=18 \
-  --build-arg JDK_SHA256_X64=9901071672629d07caff1d5d50db34cecabf36aa3336e9fad4dbed5e8876fa40 \
-  --build-arg JDK_SHA256_AARCH64=2303bdc1f3afaebd79e81fbcf4d5ca707c9bc645170f0e3a328ba717f6916b9d \
+  --build-arg JAVA_BUILD=21 \
+  --build-arg JDK_SHA256_X64=b32bf773d02fff73d4a2da78cf590459879963b3dbffd18dcc9d6c6756ee4549 \
+  --build-arg JDK_SHA256_AARCH64=3908eb08a5a6a074301fffbed99ef8f2a36d0ae42dce41e7c948a3b16a8cfa5a \
   --target debian \
   -t sava-openjdk:local .
 ```
 
 This corresponds to download URLs such as
-`https://download.java.net/java/early_access/jdk28/18/GPL/openjdk-28-ea+18_linux-aarch64_bin.tar.gz`.
+`https://download.java.net/java/early_access/jdk28/21/GPL/openjdk-28-ea+21_linux-aarch64_bin.tar.gz`.
 
 ### Reusable installation script
 
@@ -213,17 +215,17 @@ other Dockerfiles (or run directly in CI). It resolves the GA/EA download URL,
 verifies the sha256 checksum and extracts the JDK into `JAVA_HOME`. Inputs are
 provided via environment variables:
 
-| Variable             | Purpose                                                                           |
-|----------------------|-----------------------------------------------------------------------------------|
-| `JAVA_VERSION`       | JDK version. GA: full (e.g. `27` or `26.0.2.1`). EA: major (e.g. `28`). Required. |
-| `JAVA_BUILD`         | Build number (e.g. `35` for GA, `18` for EA). Required.                           |
-| `JAVA_RELEASE_TYPE`  | `ga` or `ea`. Required.                                                           |
-| `JAVA_VERSION_HASH`  | GA only: the version hash in the download URL. Required for `ga`.                 |
-| `TARGETARCH`         | `amd64`/`arm64` or `x86_64`/`aarch64`. Required.                                  |
-| `JDK_SHA256_X64`     | Expected sha256 of the x64 download. Required (unless `JDK_SHA256` is set).       |
-| `JDK_SHA256_AARCH64` | Expected sha256 of the aarch64 download. Required (unless `JDK_SHA256` is set).   |
-| `JDK_SHA256`         | Optional checksum override taking precedence over the per-arch values.            |
-| `JAVA_HOME`          | Install directory. Required.                                                      |
+| Variable             | Purpose                                                                             |
+|----------------------|-------------------------------------------------------------------------------------|
+| `JAVA_VERSION`       | JDK version. GA: full (e.g. `27` or `27.0.1.0.2`). EA: major (e.g. `28`). Required. |
+| `JAVA_BUILD`         | Build number (e.g. `1` for GA, `21` for EA). Required.                              |
+| `JAVA_RELEASE_TYPE`  | `ga` or `ea`. Required.                                                             |
+| `JAVA_VERSION_HASH`  | GA only: the version hash in the download URL. Required for `ga`.                   |
+| `TARGETARCH`         | `amd64`/`arm64` or `x86_64`/`aarch64`. Required.                                    |
+| `JDK_SHA256_X64`     | Expected sha256 of the x64 download. Required (unless `JDK_SHA256` is set).         |
+| `JDK_SHA256_AARCH64` | Expected sha256 of the aarch64 download. Required (unless `JDK_SHA256` is set).     |
+| `JDK_SHA256`         | Optional checksum override taking precedence over the per-arch values.              |
+| `JAVA_HOME`          | Install directory. Required.                                                        |
 
 To reuse it in another Dockerfile:
 
@@ -235,10 +237,10 @@ ENV JAVA_HOME=/opt/java
 COPY scripts/install-jdk.sh /usr/local/bin/install-jdk.sh
 RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates && \
     rm -rf /var/lib/apt/lists/* && \
-    JAVA_RELEASE_TYPE=ga JAVA_VERSION=27 JAVA_BUILD=35 \
-    JAVA_VERSION_HASH=55ce5470a6294008af0057ff4626d0e5 \
-    JDK_SHA256_X64=95fc37eb3a18a27a26d5904c2d89d52bace8dafa9a078ca27f4747fbc4bf070b \
-    JDK_SHA256_AARCH64=da4e9dde1fff90204739e969187bab4751bd59a2a1c479672e1a1810f7dd23ea \
+    JAVA_RELEASE_TYPE=ga JAVA_VERSION=27.0.1.0.2 JAVA_BUILD=1 \
+    JAVA_VERSION_HASH=924dbdccfc234bb9b9355d7c6b66034b \
+    JDK_SHA256_X64=e69ee3937022c1caa8eaa32a586955ba13c109ad6986a6a1a7f1d5e6fa8998e3 \
+    JDK_SHA256_AARCH64=8057b0bdc1742438c50b69f7a4544d10712e6585e4760f9846aca6bb70d35d72 \
     /usr/local/bin/install-jdk.sh
 ```
 

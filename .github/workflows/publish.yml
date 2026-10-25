@@ -45,11 +45,11 @@ jobs:
           # GA (General Availability) build, as listed on https://jdk.java.net/.
           - target: debian
             release_type: ga
-            java_version: &ga-java-version "27.0.1.0.2"
-            java_version_hash: &ga-java-version-hash "924dbdccfc234bb9b9355d7c6b66034b"
+            java_version: &ga-java-version "27.0.1.0.3"
+            java_version_hash: &ga-java-version-hash "b14170c9b2de463d9b89442c6db3e384"
             java_build: &ga-java-build "1"
-            jdk_sha256_x64: &ga-jdk-sha256-x64 "e69ee3937022c1caa8eaa32a586955ba13c109ad6986a6a1a7f1d5e6fa8998e3"
-            jdk_sha256_aarch64: &ga-jdk-sha256-aarch64 "8057b0bdc1742438c50b69f7a4544d10712e6585e4760f9846aca6bb70d35d72"
+            jdk_sha256_x64: &ga-jdk-sha256-x64 "256199399aaddc6d66919b5de90794b4263e4ab312aa56692cb63b70a0abef41"
+            jdk_sha256_aarch64: &ga-jdk-sha256-aarch64 "a088a727fa3e76ebeadfa76ed9c1e9fecbdfa54ec752ecb669c38a8585e058a1"
           - target: alpine
             release_type: ga
             java_version: *ga-java-version

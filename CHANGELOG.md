@@ -1,5 +1,12 @@
 # Changelog
 
+## [27.0.4](https://github.com/sava-software/sava-openjdk/compare/27.0.3...27.0.4) (2026-10-25)
+
+
+### Features
+
+* **docker:** bump OpenJDK to 27.0.1.0.3 GA ([74bfab2](https://github.com/sava-software/sava-openjdk/commit/74bfab23ae6a1756dc3f2a924175ee6f148d5e15))
+
 ## [27.0.3](https://github.com/sava-software/sava-openjdk/compare/27.0.2...27.0.3) (2026-10-23)
 
 

@@ -45,11 +45,11 @@ jobs:
           # GA (General Availability) build, as listed on https://jdk.java.net/.
           - target: debian
             release_type: ga
-            java_version: &ga-java-version "27.0.1.0.3"
-            java_version_hash: &ga-java-version-hash "b14170c9b2de463d9b89442c6db3e384"
-            java_build: &ga-java-build "1"
-            jdk_sha256_x64: &ga-jdk-sha256-x64 "256199399aaddc6d66919b5de90794b4263e4ab312aa56692cb63b70a0abef41"
-            jdk_sha256_aarch64: &ga-jdk-sha256-aarch64 "a088a727fa3e76ebeadfa76ed9c1e9fecbdfa54ec752ecb669c38a8585e058a1"
+            java_version: &ga-java-version "27.0.1.1"
+            java_version_hash: &ga-java-version-hash "c3a705caf5044be8aa0b09e62be69b20"
+            java_build: &ga-java-build "4"
+            jdk_sha256_x64: &ga-jdk-sha256-x64 "82172b79a4e4a8546e2538c525b63e020f419922a5d30f9873bbb832ce95637b"
+            jdk_sha256_aarch64: &ga-jdk-sha256-aarch64 "7b851f4cdf55ce48dc33584349177aa271df0bbd0ff5711a6e7fcd812ef5a90a"
           - target: alpine
             release_type: ga
             java_version: *ga-java-version
@@ -63,9 +63,9 @@ jobs:
             release_type: ea
             java_version: &ea-java-version "28"
             java_version_hash: ""
-            java_build: &ea-java-build "21"
-            jdk_sha256_x64: &ea-jdk-sha256-x64 "b32bf773d02fff73d4a2da78cf590459879963b3dbffd18dcc9d6c6756ee4549"
-            jdk_sha256_aarch64: &ea-jdk-sha256-aarch64 "3908eb08a5a6a074301fffbed99ef8f2a36d0ae42dce41e7c948a3b16a8cfa5a"
+            java_build: &ea-java-build "24"
+            jdk_sha256_x64: &ea-jdk-sha256-x64 "5a03a3c06fcc4545132b530df7c81bc7828cf808eb34156b882240ae98d343e1"
+            jdk_sha256_aarch64: &ea-jdk-sha256-aarch64 "f68b14f12467ccf66f16b2d1300243be561f5b6da6c2e31effaf9db5d1c49af4"
           - target: alpine
             release_type: ea
             java_version: *ea-java-version

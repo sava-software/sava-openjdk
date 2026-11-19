@@ -16,7 +16,7 @@
 # ("objcopy"), which jlink's --strip-debug needs; see "jlink" in README.md.
 
 # https://www.debian.org/releases/
-FROM debian:trixie@sha256:4c25275446ca371766b8b093c696782eabce06263fccacb8d5d813b3dc44b308 AS jdk
+FROM debian:trixie@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6 AS jdk
 
 # The JDK version args are intentionally declared without defaults and the
 # checksums default to empty, so supply each of them with --build-arg. The values
@@ -50,7 +50,7 @@ COPY scripts/stage-rootfs-libs.sh /usr/local/bin/stage-rootfs-libs.sh
 RUN ROOTFS_CXX_LIBS=/rootfs-cxx-libs /usr/local/bin/stage-rootfs-libs.sh
 
 # --- final: debian runtime ---
-FROM debian:trixie@sha256:4c25275446ca371766b8b093c696782eabce06263fccacb8d5d813b3dc44b308 AS debian
+FROM debian:trixie@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6 AS debian
 
 ENV LANG=C.UTF-8
 ENV JAVA_HOME=/opt/java
@@ -69,7 +69,7 @@ RUN mkdir -p /rootfs/tmp && chmod 1777 /rootfs/tmp
 CMD [ "java", "--version" ]
 
 # --- final: alpine runtime ---
-FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS alpine
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS alpine
 
 ENV LANG=C.UTF-8
 ENV JAVA_HOME=/opt/java

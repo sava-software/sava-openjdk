@@ -63,9 +63,9 @@ jobs:
             release_type: ea
             java_version: &ea-java-version "28"
             java_version_hash: ""
-            java_build: &ea-java-build "24"
-            jdk_sha256_x64: &ea-jdk-sha256-x64 "5a03a3c06fcc4545132b530df7c81bc7828cf808eb34156b882240ae98d343e1"
-            jdk_sha256_aarch64: &ea-jdk-sha256-aarch64 "f68b14f12467ccf66f16b2d1300243be561f5b6da6c2e31effaf9db5d1c49af4"
+            java_build: &ea-java-build "25"
+            jdk_sha256_x64: &ea-jdk-sha256-x64 "153fe277dec09662d3975480a3010bac00cccec05be2271d719aa194a7df04e0"
+            jdk_sha256_aarch64: &ea-jdk-sha256-aarch64 "5c26dd3de67c06540b654e750ada428a05d92feb6c5fff9a32a06ff9dd000912"
           - target: alpine
             release_type: ea
             java_version: *ea-java-version

@@ -1,5 +1,13 @@
 # Changelog
 
+## [27.0.5](https://github.com/sava-software/sava-openjdk/compare/27.0.4...27.0.5) (2026-11-20)
+
+
+### Features
+
+* **docker:** update OpenJDK 28 EA to build 25 ([f794820](https://github.com/sava-software/sava-openjdk/commit/f794820ce0eb49057a53e037b3530afff82893f8))
+* **docker:** update OpenJDK to 27.0.1.1 GA and 28-ea+24 ([3aa0e37](https://github.com/sava-software/sava-openjdk/commit/3aa0e37199d8538710983733e6614288e80c31ca))
+
 ## [27.0.4](https://github.com/sava-software/sava-openjdk/compare/27.0.3...27.0.4) (2026-10-25)
 
 
